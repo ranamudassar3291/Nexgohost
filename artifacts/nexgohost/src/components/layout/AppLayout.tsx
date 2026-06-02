@@ -34,7 +34,7 @@ interface NavGroup {
 
 // ─── Contextual Help Guides ───────────────────────────────────────────────────
 const HELP_CONTEXT: Record<string, { title: string; articles: { label: string; desc: string }[] }> = {
-  "/client/hosting": {
+  "/dashboard/hosting": {
     title: "Hosting Guides",
     articles: [
       { label: "Getting started with cPanel", desc: "Set up files, databases and SSL in minutes." },
@@ -42,7 +42,7 @@ const HELP_CONTEXT: Record<string, { title: string; articles: { label: string; d
       { label: "1-click WordPress installation", desc: "Launch WordPress from your control panel." },
     ],
   },
-  "/client/domains": {
+  "/dashboard/domains": {
     title: "Domain Guides",
     articles: [
       { label: "Transfer a domain to us", desc: "Move your domain and keep existing settings." },
@@ -50,7 +50,7 @@ const HELP_CONTEXT: Record<string, { title: string; articles: { label: string; d
       { label: "Enable WHOIS privacy", desc: "Hide your contact info from public lookups." },
     ],
   },
-  "/client/billing": {
+  "/dashboard/billing": {
     title: "Billing Guides",
     articles: [
       { label: "Pay an invoice", desc: "Step-by-step payment instructions." },
@@ -58,7 +58,7 @@ const HELP_CONTEXT: Record<string, { title: string; articles: { label: string; d
       { label: "Understanding renewals", desc: "When and how you're billed for renewals." },
     ],
   },
-  "/client/tickets": {
+  "/dashboard/tickets": {
     title: "Support Guides",
     articles: [
       { label: "Open a support ticket", desc: "Describe your issue for a fast response." },
@@ -66,7 +66,7 @@ const HELP_CONTEXT: Record<string, { title: string; articles: { label: string; d
       { label: "Escalate an issue", desc: "When and how to request priority handling." },
     ],
   },
-  "/client/account": {
+  "/dashboard/account": {
     title: "Account Guides",
     articles: [
       { label: "Update contact details", desc: "Keep your billing info and email current." },
@@ -145,34 +145,34 @@ const CLIENT_SIDEBAR_GROUPS = [
     label: "Main",
     items: [
       { name: "Dashboard",  href: "/dashboard", icon: LayoutDashboard },
-      { name: "Orders",     href: "/client/orders",    icon: ShoppingCart    },
-      { name: "Billing",    href: "/client/billing",   icon: Receipt         },
+      { name: "Orders",     href: "/dashboard/orders",    icon: ShoppingCart    },
+      { name: "Billing",    href: "/dashboard/billing",   icon: Receipt         },
     ],
   },
   {
     label: "Services",
     items: [
-      { name: "My Hosting",      href: "/client/hosting",   icon: Server },
-      { name: "My Domains",      href: "/client/domains",   icon: Globe  },
-      { name: "Domain Reseller", href: "/client/reseller",  icon: Globe  },
+      { name: "My Hosting",      href: "/dashboard/hosting",   icon: Server },
+      { name: "My Domains",      href: "/dashboard/domains",   icon: Globe  },
+      { name: "Domain Reseller", href: "/dashboard/reseller",  icon: Globe  },
     ],
   },
   {
     label: "Tools & Growth",
     items: [
-      { name: "SEO Toolkit",  href: "/client/growth",    icon: TrendingUp, accent: "#10B981" },
-      { name: "Security",     href: "/client/security",  icon: ShieldCheck, accent: "#F59E0B" },
-      { name: "Team Access",  href: "/client/team",      icon: Users2      },
-      { name: "Support",      href: "/client/tickets",   icon: Ticket      },
+      { name: "SEO Toolkit",  href: "/dashboard/growth",    icon: TrendingUp, accent: "#10B981" },
+      { name: "Security",     href: "/dashboard/security",  icon: ShieldCheck, accent: "#F59E0B" },
+      { name: "Team Access",  href: "/dashboard/team",      icon: Users2      },
+      { name: "Support",      href: "/dashboard/tickets",   icon: Ticket      },
       { name: "Help Center",  href: "/help",             icon: BookOpen    },
     ],
   },
   {
     label: "Account",
     items: [
-      { name: "My Account", href: "/client/account",   icon: User  },
-      { name: "Affiliate",  href: "/client/affiliate", icon: Share2  },
-      { name: "Credits",    href: "/client/credits",   icon: Wallet  },
+      { name: "My Account", href: "/dashboard/account",   icon: User  },
+      { name: "Affiliate",  href: "/dashboard/affiliate", icon: Share2  },
+      { name: "Credits",    href: "/dashboard/credits",   icon: Wallet  },
     ],
   },
 ];
@@ -301,7 +301,7 @@ export function AppLayout({ children, role }: LayoutProps) {
 
       {/* ── New Order CTA ── */}
       <div className="px-4 pt-4 pb-2 flex-shrink-0">
-        <Link href="/client/orders/new">
+        <Link href="/dashboard/orders/new">
           <div onClick={() => setMobileMenuOpen(false)}
             className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl cursor-pointer font-bold text-[13px] text-white select-none"
             style={{ background: "linear-gradient(135deg,#6B46C1,#8B5CF6)", boxShadow: "0 4px 18px rgba(107,70,193,0.4)" }}>
@@ -420,7 +420,7 @@ export function AppLayout({ children, role }: LayoutProps) {
             <p className="text-[12px] font-semibold text-white truncate leading-none mb-0.5">{user?.firstName} {user?.lastName}</p>
             <p className="text-[10px] truncate leading-none" style={{ color: "rgba(255,255,255,0.38)" }}>{user?.email}</p>
           </div>
-          <Link href="/client/account">
+          <Link href="/dashboard/account">
             <div className="w-6 h-6 rounded-lg flex items-center justify-center cursor-pointer"
               style={{ background: "rgba(255,255,255,0.06)" }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "rgba(99,102,241,0.2)"}
@@ -576,7 +576,7 @@ export function AppLayout({ children, role }: LayoutProps) {
 
         <div className="flex items-center gap-1">
           {isClient && (
-            <Link href="/client/orders/new">
+            <Link href="/dashboard/orders/new">
               <button
                 className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold text-white shadow mr-1"
                 style={{ background: "linear-gradient(135deg, #6B46C1, #8B5CF6)" }}
@@ -659,7 +659,7 @@ export function AppLayout({ children, role }: LayoutProps) {
             )}
             {isClient && (
               <>
-                <Link href="/client/orders/new">
+                <Link href="/dashboard/orders/new">
                   <button
                     className="flex items-center gap-1.5 h-9 px-4 rounded-xl text-sm font-semibold text-white shadow transition-opacity hover:opacity-90"
                     style={{ background: "linear-gradient(135deg, #6B46C1, #8B5CF6)", boxShadow: "0 4px 14px rgba(107,70,193,0.25)" }}
@@ -818,7 +818,7 @@ export function AppLayout({ children, role }: LayoutProps) {
                 {/* Divider */}
                 <div className="pt-2">
                   <p className="text-[10px] font-bold uppercase tracking-widest px-1 pb-2" style={{ color: "#CBD5E1" }}>Still need help?</p>
-                  <Link href="/client/tickets" onClick={() => setHelpOpen(false)}>
+                  <Link href="/dashboard/tickets" onClick={() => setHelpOpen(false)}>
                     <div
                       className="flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm font-semibold text-white cursor-pointer transition-opacity hover:opacity-90"
                       style={{ background: "linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%)" }}

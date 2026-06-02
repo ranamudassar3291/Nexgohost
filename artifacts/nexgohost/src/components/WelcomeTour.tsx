@@ -49,7 +49,7 @@ const STEPS = [
     title: "Ready to Launch Your Site?",
     subtitle: "You're all set!",
     body: "Start by registering a domain, then add a hosting plan. Your site can be live in minutes. Click the button below to order your first service.",
-    action: { label: "Order Hosting →", href: "/client/orders/new" },
+    action: { label: "Order Hosting →", href: "/dashboard/orders/new" },
   },
 ];
 

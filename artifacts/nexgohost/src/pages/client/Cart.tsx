@@ -114,7 +114,7 @@ function HostingUpsellBanner({
       </div>
 
       <div className="px-4 pb-3 text-center">
-        <button onClick={() => setLocation("/client/orders/new")} className="text-xs text-muted-foreground hover:text-primary transition-colors underline-offset-2 hover:underline">
+        <button onClick={() => setLocation("/dashboard/orders/new")} className="text-xs text-muted-foreground hover:text-primary transition-colors underline-offset-2 hover:underline">
           See all hosting plans →
         </button>
       </div>
@@ -132,7 +132,7 @@ export default function Cart() {
 
   const { data: services = [] } = useQuery<HostingService[]>({
     queryKey: ["client-services-cart"],
-    queryFn: () => apiFetch("/api/client/hosting"),
+    queryFn: () => apiFetch("/api/dashboard/hosting"),
     retry: false,
     enabled: isLoggedIn,
   });
@@ -184,7 +184,7 @@ export default function Cart() {
     const item = items[0];
     const params = buildCheckoutParams(item as any);
     clearCart();
-    setLocation(`/client/checkout?${params.toString()}`);
+    setLocation(`/dashboard/checkout?${params.toString()}`);
   }
 
   if (items.length === 0) {
@@ -198,7 +198,7 @@ export default function Cart() {
             <h2 className="text-2xl font-display font-bold text-foreground mb-2">Your cart is empty</h2>
             <p className="text-muted-foreground">Browse our hosting plans and add one to get started.</p>
           </div>
-          <Button onClick={() => setLocation("/client/orders/new")} className="gap-2">
+          <Button onClick={() => setLocation("/dashboard/orders/new")} className="gap-2">
             <Package size={16} /> Browse Plans
           </Button>
         </div>
@@ -221,7 +221,7 @@ export default function Cart() {
           <h1 className="text-2xl font-display font-bold text-foreground">Your Cart</h1>
           <p className="text-muted-foreground text-sm mt-0.5">{items.length} item{items.length !== 1 ? "s" : ""} in your cart</p>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => setLocation("/client/orders/new")} className="gap-2 text-muted-foreground">
+        <Button variant="ghost" size="sm" onClick={() => setLocation("/dashboard/orders/new")} className="gap-2 text-muted-foreground">
           <ArrowLeft size={15} /> Continue Shopping
         </Button>
       </div>

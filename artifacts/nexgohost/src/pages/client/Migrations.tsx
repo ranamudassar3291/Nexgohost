@@ -310,7 +310,7 @@ export default function ClientMigrations() {
         <p className="text-muted-foreground max-w-md">
           Website migrations are a premium feature. Please contact our support team to enable migration access for your account.
         </p>
-        <Button onClick={() => window.location.href = "/client/tickets"} className="bg-primary hover:bg-primary/90">
+        <Button onClick={() => window.location.href = "/dashboard/tickets"} className="bg-primary hover:bg-primary/90">
           Contact Support
         </Button>
       </div>

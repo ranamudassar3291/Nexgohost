@@ -2,10 +2,10 @@
  * One-Click Staging & Cloning — client hosting routes
  *
  * Endpoints:
- *   GET    /client/hosting/:id/staging              — current staging site + sync logs
- *   POST   /client/hosting/:id/staging/create       — create/clone staging from live
- *   POST   /client/hosting/:id/staging/push-to-live — push staging back to live
- *   DELETE /client/hosting/:id/staging              — destroy staging site
+ *   GET    /dashboard/hosting/:id/staging              — current staging site + sync logs
+ *   POST   /dashboard/hosting/:id/staging/create       — create/clone staging from live
+ *   POST   /dashboard/hosting/:id/staging/push-to-live — push staging back to live
+ *   DELETE /dashboard/hosting/:id/staging              — destroy staging site
  */
 
 import { Router } from "express";
@@ -78,8 +78,8 @@ async function appendSyncLog(serviceId: string, action: string, status: string, 
   `).catch(() => {});
 }
 
-// ─── GET /client/hosting/:id/staging ─────────────────────────────────────────
-router.get("/client/hosting/:id/staging", authenticate, async (req: AuthRequest, res) => {
+// ─── GET /dashboard/hosting/:id/staging ─────────────────────────────────────────
+router.get("/dashboard/hosting/:id/staging", authenticate, async (req: AuthRequest, res) => {
   try {
     const ctx = await getCtx(req.params.id, req.user!.id);
     if (!ctx) return res.status(404).json({ error: "Not found" });
@@ -102,8 +102,8 @@ router.get("/client/hosting/:id/staging", authenticate, async (req: AuthRequest,
   }
 });
 
-// ─── POST /client/hosting/:id/staging/create ─────────────────────────────────
-router.post("/client/hosting/:id/staging/create", authenticate, async (req: AuthRequest, res) => {
+// ─── POST /dashboard/hosting/:id/staging/create ─────────────────────────────────
+router.post("/dashboard/hosting/:id/staging/create", authenticate, async (req: AuthRequest, res) => {
   const sid = req.params.id;
   try {
     const ctx = await getCtx(sid, req.user!.id);
@@ -196,8 +196,8 @@ router.post("/client/hosting/:id/staging/create", authenticate, async (req: Auth
   }
 });
 
-// ─── POST /client/hosting/:id/staging/push-to-live ───────────────────────────
-router.post("/client/hosting/:id/staging/push-to-live", authenticate, async (req: AuthRequest, res) => {
+// ─── POST /dashboard/hosting/:id/staging/push-to-live ───────────────────────────
+router.post("/dashboard/hosting/:id/staging/push-to-live", authenticate, async (req: AuthRequest, res) => {
   const sid = req.params.id;
   try {
     const ctx = await getCtx(sid, req.user!.id);
@@ -253,8 +253,8 @@ router.post("/client/hosting/:id/staging/push-to-live", authenticate, async (req
   }
 });
 
-// ─── DELETE /client/hosting/:id/staging ──────────────────────────────────────
-router.delete("/client/hosting/:id/staging", authenticate, async (req: AuthRequest, res) => {
+// ─── DELETE /dashboard/hosting/:id/staging ──────────────────────────────────────
+router.delete("/dashboard/hosting/:id/staging", authenticate, async (req: AuthRequest, res) => {
   const sid = req.params.id;
   try {
     const ctx = await getCtx(sid, req.user!.id);

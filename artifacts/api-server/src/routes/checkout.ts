@@ -19,7 +19,7 @@ import { sendWhatsAppAlert } from "../lib/whatsapp.js";
 
 const router = Router();
 
-// POST /api/checkout or /api/client/checkout
+// POST /api/checkout or /api/dashboard/checkout
 async function handleCheckout(req: AuthRequest, res: any) {
   try {
     const {
@@ -1004,7 +1004,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
       }, { clientId: user.id, referenceId: invoice.id }).catch(console.warn);
     }
 
-    createNotification(user.id, "order", "Order Placed", `Your order for ${plan.name} has been placed${paidWithCredits ? " and is now active" : " — awaiting payment"}`, `/client/orders`).catch(() => {});
+    createNotification(user.id, "order", "Order Placed", `Your order for ${plan.name} has been placed${paidWithCredits ? " and is now active" : " — awaiting payment"}`, `/dashboard/orders`).catch(() => {});
     createNotification(user.id, "invoice", "Invoice Created", `Invoice ${invoiceNumber} for Rs. ${finalAmount.toFixed(2)} has been generated`, `/client/invoices`).catch(() => {});
 
     // WhatsApp alert — non-blocking
@@ -1231,8 +1231,8 @@ async function handleDomainCheckout(req: AuthRequest, res: any) {
 }
 
 router.post("/checkout", authenticate, handleCheckout);
-router.post("/client/checkout", authenticate, handleCheckout);
+router.post("/dashboard/checkout", authenticate, handleCheckout);
 router.post("/checkout/domain", authenticate, handleDomainCheckout);
-router.post("/client/checkout/domain", authenticate, handleDomainCheckout);
+router.post("/dashboard/checkout/domain", authenticate, handleDomainCheckout);
 
 export default router;

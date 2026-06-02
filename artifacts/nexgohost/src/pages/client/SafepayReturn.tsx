@@ -83,7 +83,7 @@ export default function SafepayReturn() {
     });
   }
 
-  const goToInvoice = () => setLocation(`/client/invoices/${invoiceId}`);
+  const goToInvoice = () => setLocation(`/dashboard/invoices/${invoiceId}`);
   const goToDashboard = () => setLocation("/dashboard");
 
   // ─── ACTIVATING: stepper ──────────────────────────────────────────────────
@@ -255,7 +255,7 @@ export default function SafepayReturn() {
           <h1 className="text-2xl font-bold text-foreground mb-2">Something Went Wrong</h1>
           <p className="text-muted-foreground">We couldn't retrieve your payment status. Please check your invoices page.</p>
         </div>
-        <Button onClick={() => setLocation("/client/invoices")} className="bg-primary hover:bg-primary/90">
+        <Button onClick={() => setLocation("/dashboard/invoices")} className="bg-primary hover:bg-primary/90">
           Go to Invoices
         </Button>
       </div>

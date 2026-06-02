@@ -523,7 +523,7 @@ router.post("/admin/hosting/:id/terminate", authenticate, requireAdmin, async (r
 });
 
 // Client: toggle auto-renew on own hosting service
-router.put("/client/hosting/:id/auto-renew", authenticate, async (req: AuthRequest, res) => {
+router.put("/dashboard/hosting/:id/auto-renew", authenticate, async (req: AuthRequest, res) => {
   try {
     const [service] = await db.select().from(hostingServicesTable)
       .where(and(eq(hostingServicesTable.id, req.params.id), eq(hostingServicesTable.clientId, req.user!.userId))).limit(1);
@@ -541,7 +541,7 @@ router.put("/client/hosting/:id/auto-renew", authenticate, async (req: AuthReque
 });
 
 // Client: request cancellation
-router.post("/client/hosting/:id/cancel-request", authenticate, async (req: AuthRequest, res) => {
+router.post("/dashboard/hosting/:id/cancel-request", authenticate, async (req: AuthRequest, res) => {
   try {
     const { reason } = req.body;
     const [service] = await db.select().from(hostingServicesTable)
@@ -696,7 +696,7 @@ router.post("/admin/hosting/:id/cancel", authenticate, requireAdmin, async (req:
 });
 
 // Client: get my hosting
-router.post("/client/hosting/:id/reinstall-ssl", authenticate, async (req: AuthRequest, res) => {
+router.post("/dashboard/hosting/:id/reinstall-ssl", authenticate, async (req: AuthRequest, res) => {
   const { id } = req.params;
   const [service] = await db.select().from(hostingServicesTable)
     .where(eq(hostingServicesTable.id, id)).limit(1);
@@ -738,7 +738,7 @@ router.post("/client/hosting/:id/reinstall-ssl", authenticate, async (req: AuthR
 });
 
 // Client: get current PHP version
-router.get("/client/hosting/:id/php-version", authenticate, async (req: AuthRequest, res) => {
+router.get("/dashboard/hosting/:id/php-version", authenticate, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const [service] = await db.select().from(hostingServicesTable)
@@ -774,7 +774,7 @@ router.get("/client/hosting/:id/php-version", authenticate, async (req: AuthRequ
 });
 
 // Client: set PHP version
-router.post("/client/hosting/:id/php-version", authenticate, async (req: AuthRequest, res) => {
+router.post("/dashboard/hosting/:id/php-version", authenticate, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const { version } = req.body;
@@ -991,11 +991,11 @@ async function ssoLogin(req: AuthRequest, res: any, service_name: "cpaneld" | "w
   }
 }
 
-router.post("/client/hosting/:id/cpanel-login", authenticate, (req: AuthRequest, res) =>
+router.post("/dashboard/hosting/:id/cpanel-login", authenticate, (req: AuthRequest, res) =>
   ssoLogin(req, res, "cpaneld"),
 );
 
-router.post("/client/hosting/:id/webmail-login", authenticate, (req: AuthRequest, res) =>
+router.post("/dashboard/hosting/:id/webmail-login", authenticate, (req: AuthRequest, res) =>
   ssoLogin(req, res, "webmaild"),
 );
 
@@ -1018,7 +1018,7 @@ function extractCpanelBase(sessionUrl: string): string {
   return m ? m[1] : sessionUrl.replace(/\/+$/, "");
 }
 
-router.post("/client/hosting/:id/sso-launch", authenticate, async (req: AuthRequest, res) => {
+router.post("/dashboard/hosting/:id/sso-launch", authenticate, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const target: string = (req.body as any)?.target || "cpanel";
@@ -1278,7 +1278,7 @@ router.post("/admin/hosting/link-all-servers", authenticate, requireAdmin, async
   }
 });
 
-router.get("/client/hosting", authenticate, async (req: AuthRequest, res) => {
+router.get("/dashboard/hosting", authenticate, async (req: AuthRequest, res) => {
   try {
     const services = await db.select().from(hostingServicesTable)
       .where(eq(hostingServicesTable.clientId, req.user!.userId))
@@ -1296,7 +1296,7 @@ router.get("/client/hosting", authenticate, async (req: AuthRequest, res) => {
 });
 
 // Client: get single service by ID
-router.get("/client/hosting/:id", authenticate, async (req: AuthRequest, res) => {
+router.get("/dashboard/hosting/:id", authenticate, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const [service] = await db.select().from(hostingServicesTable)
@@ -1313,7 +1313,7 @@ router.get("/client/hosting/:id", authenticate, async (req: AuthRequest, res) =>
 });
 
 // Client: get free domain info for a service (allowed TLDs, plan name)
-router.get("/client/hosting/:id/free-domain-info", authenticate, async (req: AuthRequest, res) => {
+router.get("/dashboard/hosting/:id/free-domain-info", authenticate, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const [service] = await db.select().from(hostingServicesTable)
@@ -1343,7 +1343,7 @@ router.get("/client/hosting/:id/free-domain-info", authenticate, async (req: Aut
 });
 
 // Client: register & claim the free domain for a service
-router.post("/client/hosting/:id/claim-free-domain", authenticate, async (req: AuthRequest, res) => {
+router.post("/dashboard/hosting/:id/claim-free-domain", authenticate, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const { domain } = req.body as { domain: string };
@@ -1487,7 +1487,7 @@ router.get("/client/dashboard", authenticate, async (req: AuthRequest, res) => {
 });
 
 // Client: request renewal (creates order + invoice; supports promo code)
-router.post("/client/hosting/:id/renew", authenticate, async (req: AuthRequest, res) => {
+router.post("/dashboard/hosting/:id/renew", authenticate, async (req: AuthRequest, res) => {
   try {
     const clientId = req.user!.userId;
     const { id } = req.params;
@@ -1611,7 +1611,7 @@ router.post("/admin/hosting/:id/approve-renewal", authenticate, requireAdmin, as
 });
 
 // Client: request plan upgrade/downgrade
-router.post("/client/hosting/:id/upgrade", authenticate, async (req: AuthRequest, res) => {
+router.post("/dashboard/hosting/:id/upgrade", authenticate, async (req: AuthRequest, res) => {
   try {
     const clientId = req.user!.userId;
     const { id } = req.params;
@@ -1745,7 +1745,7 @@ router.post("/admin/hosting/:id/change-password", authenticate, requireAdmin, as
   }
 });
 
-router.post("/client/hosting/:id/change-password", authenticate, async (req: AuthRequest, res) => {
+router.post("/dashboard/hosting/:id/change-password", authenticate, async (req: AuthRequest, res) => {
   try {
     const clientId = req.user!.userId;
     const { id } = req.params;
@@ -1781,8 +1781,8 @@ router.post("/client/hosting/:id/change-password", authenticate, async (req: Aut
   }
 });
 
-// ─── GET /client/hosting/:id/usage — real cPanel disk & bandwidth via WHM accountsummary ───
-router.get("/client/hosting/:id/usage", authenticate, async (req: AuthRequest, res) => {
+// ─── GET /dashboard/hosting/:id/usage — real cPanel disk & bandwidth via WHM accountsummary ───
+router.get("/dashboard/hosting/:id/usage", authenticate, async (req: AuthRequest, res) => {
   function fmtMB(mb: number): string {
     if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`;
     return `${Math.round(mb)} MB`;
@@ -1930,7 +1930,7 @@ router.post("/admin/hosting/:id/install-wordpress", authenticate, requireAdmin, 
       success: true,
       queued: true,
       credentials: { username: wpUser, password: wpPass, email: wpEmail, loginUrl: wpLoginUrl, siteName },
-      message: "WordPress installation started on VPS. Poll /client/hosting/:id/wordpress-status for progress.",
+      message: "WordPress installation started on VPS. Poll /dashboard/hosting/:id/wordpress-status for progress.",
     });
   } catch (err) {
     console.error("[ADMIN] install-wordpress error:", err);
@@ -1938,8 +1938,8 @@ router.post("/admin/hosting/:id/install-wordpress", authenticate, requireAdmin, 
   }
 });
 
-// GET /client/hosting/:id/wordpress-check — detect if WP is installed (filesystem check)
-router.get("/client/hosting/:id/wordpress-check", authenticate, async (req: AuthRequest, res) => {
+// GET /dashboard/hosting/:id/wordpress-check — detect if WP is installed (filesystem check)
+router.get("/dashboard/hosting/:id/wordpress-check", authenticate, async (req: AuthRequest, res) => {
   try {
     const clientId = req.user!.userId;
     const [service] = await db.select().from(hostingServicesTable)
@@ -1969,7 +1969,7 @@ router.get("/client/hosting/:id/wordpress-check", authenticate, async (req: Auth
 
 // ── List all cPanel domains + docroots for the domain dropdown ────────────────
 // Uses DomainInfo::domains_data UAPI call; falls back to just the primary domain.
-router.get("/client/hosting/:id/domains", authenticate, async (req: AuthRequest, res) => {
+router.get("/dashboard/hosting/:id/domains", authenticate, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const clientId = req.user!.userId;
@@ -2034,7 +2034,7 @@ router.get("/client/hosting/:id/domains", authenticate, async (req: AuthRequest,
 // ── Guided Install: generate Softaculous WordPress URL (opens in new tab) ─────
 // Prefers the bypass-login URL (no session needed, never expires).
 // Falls back to WHM session-based URL only if no password is stored.
-router.post("/client/hosting/:id/wp-softaculous-url", authenticate, async (req: AuthRequest, res) => {
+router.post("/dashboard/hosting/:id/wp-softaculous-url", authenticate, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const clientId = req.user!.userId;
@@ -2079,7 +2079,7 @@ router.post("/client/hosting/:id/wp-softaculous-url", authenticate, async (req: 
 // Uses cPanel direct API (Basic Auth with user:password) so it works even when
 // WHM UAPI proxy returns "No data returned from cPanel Service".
 // NEVER returns 500 — always returns { installed: false } on any API failure.
-router.post("/client/hosting/:id/wp-detect", authenticate, async (req: AuthRequest, res) => {
+router.post("/dashboard/hosting/:id/wp-detect", authenticate, async (req: AuthRequest, res) => {
   const { id } = req.params;
   const clientId = req.user!.userId;
   const { domain: targetDomain } = req.body as { domain?: string };
@@ -2158,7 +2158,7 @@ router.post("/client/hosting/:id/wp-detect", authenticate, async (req: AuthReque
 // ── Get WordPress admin URL — Softaculous bypass-login SSO or direct ────────
 // Tries Softaculous sign_as (one-click) using the bypass-login URL + insid.
 // Falls back to direct /wp-admin via bypass-login. Never returns 500.
-router.post("/client/hosting/:id/wp-admin-url", authenticate, async (req: AuthRequest, res) => {
+router.post("/dashboard/hosting/:id/wp-admin-url", authenticate, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const clientId = req.user!.userId;
@@ -2212,7 +2212,7 @@ router.post("/client/hosting/:id/wp-admin-url", authenticate, async (req: AuthRe
 // ── Sitejet Builder SSO URL ────────────────────────────────────────────────
 // Generates a one-click login URL directly to the cPanel Sitejet Builder.
 // Accepts optional { domain } in the body so the builder opens for a specific domain.
-router.post("/client/hosting/:id/sitejet-url", authenticate, async (req: AuthRequest, res) => {
+router.post("/dashboard/hosting/:id/sitejet-url", authenticate, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
     const clientId = req.user!.userId;
@@ -2263,11 +2263,11 @@ router.post("/client/hosting/:id/sitejet-url", authenticate, async (req: AuthReq
   }
 });
 
-// POST /client/hosting/:id/install-wordpress
+// POST /dashboard/hosting/:id/install-wordpress
 // Synchronous controller — awaits every step (DB creation, file extraction, wp-config write)
 // before responding. Returns 200 + credentials on success, or the EXACT error on failure.
 // The client-side polling loop (/wordpress-status) runs in parallel and drives the progress bar.
-router.post("/client/hosting/:id/install-wordpress", authenticate, async (req: AuthRequest, res) => {
+router.post("/dashboard/hosting/:id/install-wordpress", authenticate, async (req: AuthRequest, res) => {
   // Extend socket timeout for this route to 5 minutes — WordPress download can take ~60 s on slow VPS
   res.socket?.setTimeout(300_000);
 
@@ -2410,10 +2410,10 @@ router.post("/client/hosting/:id/install-wordpress", authenticate, async (req: A
   }
 });
 
-// POST /client/hosting/:id/reinstall-wordpress
+// POST /dashboard/hosting/:id/reinstall-wordpress
 // Synchronous — drops old DB/files, runs full provision, waits for completion,
 // returns credentials on success or the exact error on failure.
-router.post("/client/hosting/:id/reinstall-wordpress", authenticate, async (req: AuthRequest, res) => {
+router.post("/dashboard/hosting/:id/reinstall-wordpress", authenticate, async (req: AuthRequest, res) => {
   res.socket?.setTimeout(300_000);
 
   try {
@@ -2488,8 +2488,8 @@ router.post("/client/hosting/:id/reinstall-wordpress", authenticate, async (req:
   }
 });
 
-// GET /client/hosting/:id/wordpress-status — poll provisioning progress
-router.get("/client/hosting/:id/wordpress-status", authenticate, async (req: AuthRequest, res) => {
+// GET /dashboard/hosting/:id/wordpress-status — poll provisioning progress
+router.get("/dashboard/hosting/:id/wordpress-status", authenticate, async (req: AuthRequest, res) => {
   try {
     const clientId = req.user!.userId;
     const { id } = req.params;
@@ -2559,8 +2559,8 @@ const WP_BASE_DIR = process.env.WP_BASE_DIR || "/var/www";
 const MYSQL_ROOT_USER_FOR_DUMP = process.env.WP_MYSQL_ROOT_USER || "root";
 const MYSQL_ROOT_PASS_FOR_DUMP = process.env.WP_MYSQL_ROOT_PASS || "";
 
-// GET /api/client/hosting/:id/backups — list backups for a service
-router.get("/client/hosting/:id/backups", authenticate, async (req: AuthRequest, res) => {
+// GET /api/dashboard/hosting/:id/backups — list backups for a service
+router.get("/dashboard/hosting/:id/backups", authenticate, async (req: AuthRequest, res) => {
   try {
     const clientId = req.user!.userId;
     const { id } = req.params;
@@ -2579,9 +2579,9 @@ router.get("/client/hosting/:id/backups", authenticate, async (req: AuthRequest,
   }
 });
 
-// POST /api/client/hosting/:id/backup — trigger a new manual backup
+// POST /api/dashboard/hosting/:id/backup — trigger a new manual backup
 // Body: { backupType?: "full" | "db_only" }  (default: "full")
-router.post("/client/hosting/:id/backup", authenticate, async (req: AuthRequest, res) => {
+router.post("/dashboard/hosting/:id/backup", authenticate, async (req: AuthRequest, res) => {
   try {
     const clientId = req.user!.userId;
     const { id } = req.params;
@@ -2637,8 +2637,8 @@ router.post("/client/hosting/:id/backup", authenticate, async (req: AuthRequest,
   }
 });
 
-// GET /api/client/hosting/:id/backup/:backupId — get backup status
-router.get("/client/hosting/:id/backup/:backupId", authenticate, async (req: AuthRequest, res) => {
+// GET /api/dashboard/hosting/:id/backup/:backupId — get backup status
+router.get("/dashboard/hosting/:id/backup/:backupId", authenticate, async (req: AuthRequest, res) => {
   try {
     const clientId = req.user!.userId;
     const { id, backupId } = req.params;
@@ -2654,8 +2654,8 @@ router.get("/client/hosting/:id/backup/:backupId", authenticate, async (req: Aut
   }
 });
 
-// DELETE /api/client/hosting/:id/backup/:backupId — remove a backup record (and local files)
-router.delete("/client/hosting/:id/backup/:backupId", authenticate, async (req: AuthRequest, res) => {
+// DELETE /api/dashboard/hosting/:id/backup/:backupId — remove a backup record (and local files)
+router.delete("/dashboard/hosting/:id/backup/:backupId", authenticate, async (req: AuthRequest, res) => {
   try {
     const clientId = req.user!.userId;
     const { id, backupId } = req.params;
@@ -2835,9 +2835,9 @@ async function runCpanelBackup(
 
 // ── AI WEBSITE BUILDER ────────────────────────────────────────────────────────
 
-// POST /api/client/hosting/:id/ai-builder — installs WP (if not installed) and
+// POST /api/dashboard/hosting/:id/ai-builder — installs WP (if not installed) and
 // returns the wp-admin URL so the client can start building
-router.post("/client/hosting/:id/ai-builder", authenticate, async (req: AuthRequest, res) => {
+router.post("/dashboard/hosting/:id/ai-builder", authenticate, async (req: AuthRequest, res) => {
   try {
     const clientId = req.user!.userId;
     const { id } = req.params;
@@ -3059,7 +3059,7 @@ async function resolveClientService(id: string, userId: string) {
 
 // ─── Email Accounts ───────────────────────────────────────────────────────────
 
-router.get("/client/hosting/:id/email", authenticate, async (req: AuthRequest, res) => {
+router.get("/dashboard/hosting/:id/email", authenticate, async (req: AuthRequest, res) => {
   try {
     const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
@@ -3071,7 +3071,7 @@ router.get("/client/hosting/:id/email", authenticate, async (req: AuthRequest, r
   }
 });
 
-router.post("/client/hosting/:id/email", authenticate, async (req: AuthRequest, res) => {
+router.post("/dashboard/hosting/:id/email", authenticate, async (req: AuthRequest, res) => {
   try {
     const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
@@ -3082,7 +3082,7 @@ router.post("/client/hosting/:id/email", authenticate, async (req: AuthRequest, 
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-router.delete("/client/hosting/:id/email", authenticate, async (req: AuthRequest, res) => {
+router.delete("/dashboard/hosting/:id/email", authenticate, async (req: AuthRequest, res) => {
   try {
     const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
@@ -3093,7 +3093,7 @@ router.delete("/client/hosting/:id/email", authenticate, async (req: AuthRequest
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-router.put("/client/hosting/:id/email/password", authenticate, async (req: AuthRequest, res) => {
+router.put("/dashboard/hosting/:id/email/password", authenticate, async (req: AuthRequest, res) => {
   try {
     const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
@@ -3104,7 +3104,7 @@ router.put("/client/hosting/:id/email/password", authenticate, async (req: AuthR
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-router.post("/client/hosting/:id/email/webmail", authenticate, async (req: AuthRequest, res) => {
+router.post("/dashboard/hosting/:id/email/webmail", authenticate, async (req: AuthRequest, res) => {
   try {
     const { service, server, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !serverCfg || !server) return res.status(error === "Service not found" ? 404 : 400).json({ error });
@@ -3115,7 +3115,7 @@ router.post("/client/hosting/:id/email/webmail", authenticate, async (req: AuthR
 
 // ─── Email Account Settings (spam / forward — stored in our DB) ──────────────
 
-router.get("/client/hosting/:id/email/settings", authenticate, async (req: AuthRequest, res) => {
+router.get("/dashboard/hosting/:id/email/settings", authenticate, async (req: AuthRequest, res) => {
   try {
     const { service, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !service) return res.status(error === "Service not found" ? 404 : 400).json({ error });
@@ -3131,7 +3131,7 @@ router.get("/client/hosting/:id/email/settings", authenticate, async (req: AuthR
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-router.put("/client/hosting/:id/email/settings/:emailAddr", authenticate, async (req: AuthRequest, res) => {
+router.put("/dashboard/hosting/:id/email/settings/:emailAddr", authenticate, async (req: AuthRequest, res) => {
   try {
     const { service, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !service) return res.status(error === "Service not found" ? 404 : 400).json({ error });
@@ -3156,7 +3156,7 @@ router.put("/client/hosting/:id/email/settings/:emailAddr", authenticate, async 
 
 // ─── Databases ────────────────────────────────────────────────────────────────
 
-router.get("/client/hosting/:id/databases", authenticate, async (req: AuthRequest, res) => {
+router.get("/dashboard/hosting/:id/databases", authenticate, async (req: AuthRequest, res) => {
   try {
     const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
@@ -3165,7 +3165,7 @@ router.get("/client/hosting/:id/databases", authenticate, async (req: AuthReques
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-router.post("/client/hosting/:id/databases", authenticate, async (req: AuthRequest, res) => {
+router.post("/dashboard/hosting/:id/databases", authenticate, async (req: AuthRequest, res) => {
   try {
     const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
@@ -3181,7 +3181,7 @@ router.post("/client/hosting/:id/databases", authenticate, async (req: AuthReque
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-router.delete("/client/hosting/:id/databases/:dbname", authenticate, async (req: AuthRequest, res) => {
+router.delete("/dashboard/hosting/:id/databases/:dbname", authenticate, async (req: AuthRequest, res) => {
   try {
     const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
@@ -3194,7 +3194,7 @@ router.delete("/client/hosting/:id/databases/:dbname", authenticate, async (req:
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-router.post("/client/hosting/:id/databases/phpmyadmin", authenticate, async (req: AuthRequest, res) => {
+router.post("/dashboard/hosting/:id/databases/phpmyadmin", authenticate, async (req: AuthRequest, res) => {
   try {
     const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
@@ -3207,7 +3207,7 @@ router.post("/client/hosting/:id/databases/phpmyadmin", authenticate, async (req
 
 // ─── SSH Access ───────────────────────────────────────────────────────────────
 
-router.get("/client/hosting/:id/ssh", authenticate, async (req: AuthRequest, res) => {
+router.get("/dashboard/hosting/:id/ssh", authenticate, async (req: AuthRequest, res) => {
   try {
     const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
@@ -3223,7 +3223,7 @@ router.get("/client/hosting/:id/ssh", authenticate, async (req: AuthRequest, res
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-router.post("/client/hosting/:id/ssh/enable", authenticate, async (req: AuthRequest, res) => {
+router.post("/dashboard/hosting/:id/ssh/enable", authenticate, async (req: AuthRequest, res) => {
   try {
     const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
@@ -3232,7 +3232,7 @@ router.post("/client/hosting/:id/ssh/enable", authenticate, async (req: AuthRequ
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-router.post("/client/hosting/:id/ssh/disable", authenticate, async (req: AuthRequest, res) => {
+router.post("/dashboard/hosting/:id/ssh/disable", authenticate, async (req: AuthRequest, res) => {
   try {
     const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
@@ -3243,7 +3243,7 @@ router.post("/client/hosting/:id/ssh/disable", authenticate, async (req: AuthReq
 
 // ─── Node.js Applications ─────────────────────────────────────────────────────
 
-router.get("/client/hosting/:id/nodejs", authenticate, async (req: AuthRequest, res) => {
+router.get("/dashboard/hosting/:id/nodejs", authenticate, async (req: AuthRequest, res) => {
   try {
     const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
@@ -3252,7 +3252,7 @@ router.get("/client/hosting/:id/nodejs", authenticate, async (req: AuthRequest, 
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-router.post("/client/hosting/:id/nodejs", authenticate, async (req: AuthRequest, res) => {
+router.post("/dashboard/hosting/:id/nodejs", authenticate, async (req: AuthRequest, res) => {
   try {
     const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
@@ -3265,7 +3265,7 @@ router.post("/client/hosting/:id/nodejs", authenticate, async (req: AuthRequest,
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-router.post("/client/hosting/:id/nodejs/:appname/:action", authenticate, async (req: AuthRequest, res) => {
+router.post("/dashboard/hosting/:id/nodejs/:appname/:action", authenticate, async (req: AuthRequest, res) => {
   try {
     const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
@@ -3276,7 +3276,7 @@ router.post("/client/hosting/:id/nodejs/:appname/:action", authenticate, async (
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-router.delete("/client/hosting/:id/nodejs/:appname", authenticate, async (req: AuthRequest, res) => {
+router.delete("/dashboard/hosting/:id/nodejs/:appname", authenticate, async (req: AuthRequest, res) => {
   try {
     const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
@@ -3287,7 +3287,7 @@ router.delete("/client/hosting/:id/nodejs/:appname", authenticate, async (req: A
 
 // ─── Python Applications ──────────────────────────────────────────────────────
 
-router.get("/client/hosting/:id/python", authenticate, async (req: AuthRequest, res) => {
+router.get("/dashboard/hosting/:id/python", authenticate, async (req: AuthRequest, res) => {
   try {
     const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
@@ -3296,7 +3296,7 @@ router.get("/client/hosting/:id/python", authenticate, async (req: AuthRequest, 
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-router.post("/client/hosting/:id/python", authenticate, async (req: AuthRequest, res) => {
+router.post("/dashboard/hosting/:id/python", authenticate, async (req: AuthRequest, res) => {
   try {
     const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
@@ -3309,7 +3309,7 @@ router.post("/client/hosting/:id/python", authenticate, async (req: AuthRequest,
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-router.post("/client/hosting/:id/python/:appname/:action", authenticate, async (req: AuthRequest, res) => {
+router.post("/dashboard/hosting/:id/python/:appname/:action", authenticate, async (req: AuthRequest, res) => {
   try {
     const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
@@ -3320,7 +3320,7 @@ router.post("/client/hosting/:id/python/:appname/:action", authenticate, async (
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-router.delete("/client/hosting/:id/python/:appname", authenticate, async (req: AuthRequest, res) => {
+router.delete("/dashboard/hosting/:id/python/:appname", authenticate, async (req: AuthRequest, res) => {
   try {
     const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
@@ -3344,8 +3344,8 @@ function isNetworkError(msg: string) {
     || m.includes("network") || m.includes("connect");
 }
 
-// GET /api/client/hosting/:id/files?path=public_html
-router.get("/client/hosting/:id/files", authenticate, async (req: AuthRequest, res) => {
+// GET /api/dashboard/hosting/:id/files?path=public_html
+router.get("/dashboard/hosting/:id/files", authenticate, async (req: AuthRequest, res) => {
   const svcId = req.params.id;
   const dirPath = ((req.query.path as string) || "public_html").replace(/\/+$/, "") || "public_html";
   const cacheKey = `${svcId}:${dirPath}`;
@@ -3415,8 +3415,8 @@ router.get("/client/hosting/:id/files", authenticate, async (req: AuthRequest, r
   }
 });
 
-// GET /api/client/hosting/:id/files/content?path=public_html/index.html
-router.get("/client/hosting/:id/files/content", authenticate, async (req: AuthRequest, res) => {
+// GET /api/dashboard/hosting/:id/files/content?path=public_html/index.html
+router.get("/dashboard/hosting/:id/files/content", authenticate, async (req: AuthRequest, res) => {
   try {
     const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
@@ -3430,8 +3430,8 @@ router.get("/client/hosting/:id/files/content", authenticate, async (req: AuthRe
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-// PUT /api/client/hosting/:id/files/content  { path, content }
-router.put("/client/hosting/:id/files/content", authenticate, async (req: AuthRequest, res) => {
+// PUT /api/dashboard/hosting/:id/files/content  { path, content }
+router.put("/dashboard/hosting/:id/files/content", authenticate, async (req: AuthRequest, res) => {
   try {
     const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
@@ -3442,8 +3442,8 @@ router.put("/client/hosting/:id/files/content", authenticate, async (req: AuthRe
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-// POST /api/client/hosting/:id/files/mkdir  { path, name }
-router.post("/client/hosting/:id/files/mkdir", authenticate, async (req: AuthRequest, res) => {
+// POST /api/dashboard/hosting/:id/files/mkdir  { path, name }
+router.post("/dashboard/hosting/:id/files/mkdir", authenticate, async (req: AuthRequest, res) => {
   try {
     const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
@@ -3454,8 +3454,8 @@ router.post("/client/hosting/:id/files/mkdir", authenticate, async (req: AuthReq
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-// DELETE /api/client/hosting/:id/files  { path }
-router.delete("/client/hosting/:id/files", authenticate, async (req: AuthRequest, res) => {
+// DELETE /api/dashboard/hosting/:id/files  { path }
+router.delete("/dashboard/hosting/:id/files", authenticate, async (req: AuthRequest, res) => {
   try {
     const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
@@ -3469,8 +3469,8 @@ router.delete("/client/hosting/:id/files", authenticate, async (req: AuthRequest
   } catch (err: any) { res.status(500).json({ error: err.message }); }
 });
 
-// POST /api/client/hosting/:id/files/upload  multipart: dir + file
-router.post("/client/hosting/:id/files/upload", authenticate, upload.single("file"), async (req: AuthRequest, res) => {
+// POST /api/dashboard/hosting/:id/files/upload  multipart: dir + file
+router.post("/dashboard/hosting/:id/files/upload", authenticate, upload.single("file"), async (req: AuthRequest, res) => {
   try {
     const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
@@ -3486,8 +3486,8 @@ router.post("/client/hosting/:id/files/upload", authenticate, upload.single("fil
 
 // ─── Backup Restore ───────────────────────────────────────────────────────────
 
-// POST /api/client/hosting/:id/backup/:backupId/restore
-router.post("/client/hosting/:id/backup/:backupId/restore", authenticate, async (req: AuthRequest, res) => {
+// POST /api/dashboard/hosting/:id/backup/:backupId/restore
+router.post("/dashboard/hosting/:id/backup/:backupId/restore", authenticate, async (req: AuthRequest, res) => {
   try {
     const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });
@@ -3507,8 +3507,8 @@ router.post("/client/hosting/:id/backup/:backupId/restore", authenticate, async 
 
 // ─── WordPress Plugins & Themes (SSO deep-link) ───────────────────────────────
 
-// GET /api/client/hosting/:id/wp/sso-deep?target=plugins|themes|dashboard
-router.get("/client/hosting/:id/wp/sso-deep", authenticate, async (req: AuthRequest, res) => {
+// GET /api/dashboard/hosting/:id/wp/sso-deep?target=plugins|themes|dashboard
+router.get("/dashboard/hosting/:id/wp/sso-deep", authenticate, async (req: AuthRequest, res) => {
   try {
     const { service, serverCfg, error } = await resolveClientService(req.params.id, req.user!.userId);
     if (error || !serverCfg) return res.status(error === "Service not found" ? 404 : 400).json({ error });

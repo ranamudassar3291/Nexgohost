@@ -251,7 +251,7 @@ const Checkout: React.FC = () => {
           }
         }
 
-        const res  = await fetch('/api/client/checkout', {
+        const res  = await fetch('/api/dashboard/checkout', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify(body),
@@ -329,7 +329,7 @@ const Checkout: React.FC = () => {
             <div className="flex flex-col sm:flex-row gap-3 justify-center mt-8">
               {orderInvoices.length === 1 ? (
                 <a
-                  href={`/client/invoices/${orderInvoices[0]}`}
+                  href={`/dashboard/invoices/${orderInvoices[0]}`}
                   className="inline-flex items-center gap-2 px-8 py-3.5 text-white font-black rounded-2xl transition-all shadow-xl shadow-primary/25 hover:brightness-110"
                   style={{ background: 'linear-gradient(135deg,#673de6,#4c22cc)' }}
                 >
@@ -337,7 +337,7 @@ const Checkout: React.FC = () => {
                 </a>
               ) : (
                 <a
-                  href="/client/billing"
+                  href="/dashboard/billing"
                   className="inline-flex items-center gap-2 px-8 py-3.5 text-white font-black rounded-2xl transition-all shadow-xl shadow-primary/25 hover:brightness-110"
                   style={{ background: 'linear-gradient(135deg,#673de6,#4c22cc)' }}
                 >

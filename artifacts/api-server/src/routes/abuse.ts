@@ -215,7 +215,7 @@ async function getBranding() {
       clientUrl,
     };
   } catch {
-    return { companyName: "Noehost", brandColor: "#701AFE", logoUrl: "", supportUrl: "/client/tickets/new", websiteUrl: "https://noehost.com", clientUrl: "" };
+    return { companyName: "Noehost", brandColor: "#701AFE", logoUrl: "", supportUrl: "/dashboard/tickets/new", websiteUrl: "https://noehost.com", clientUrl: "" };
   }
 }
 
@@ -542,7 +542,7 @@ router.post("/abuse/report", async (req, res) => {
           const domain = targetDomain || "your service";
           const html = buildAbuseSuspensionHtml({ ...branding, clientName: `${user.firstName} ${user.lastName}`, domain, abuseType: type, reportNumber, reason: `Critical threat detected (${type}). Threat Score: ${threat.score}/100.`, threatScore: threat.score, isCritical: true });
           await sendEmail({ to: user.email, subject: `[${branding.companyName}] 🚨 Critical Lockdown — Your Service Has Been Suspended`, html, emailType: "abuse_critical_lockdown", clientId: user.id, referenceId: report.id });
-          await createNotification(user.id, "security", "🚨 Critical Lockdown", `Your service has been immediately suspended due to a critical threat (Score: ${threat.score}/100).`, `/client/tickets`);
+          await createNotification(user.id, "security", "🚨 Critical Lockdown", `Your service has been immediately suspended due to a critical threat (Score: ${threat.score}/100).`, `/dashboard/tickets`);
         }
       }
     }
@@ -840,7 +840,7 @@ router.post("/admin/abuse/:id/warn", authenticate, requireAdmin, async (req: Aut
       .where(eq(abuseReportsTable.id, report.id))
       .returning();
 
-    await createNotification(user.id, "security", report.isDmca ? "⚖️ DMCA Notice Issued" : "⚠️ Abuse Warning Issued", `Complaint ${report.reportNumber} — Threat Score: ${report.threatScore}/100. Check your ticket.`, `/client/tickets/${ticket.id}`);
+    await createNotification(user.id, "security", report.isDmca ? "⚖️ DMCA Notice Issued" : "⚠️ Abuse Warning Issued", `Complaint ${report.reportNumber} — Threat Score: ${report.threatScore}/100. Check your ticket.`, `/dashboard/tickets/${ticket.id}`);
     await logAction(report.id, "warning_sent", `Warning sent to ${user.email}. Ticket ${ticketNumber}. Threat: ${report.threatScore}/100.`, req.user!.userId, req.user!.email);
     await emitActivity({ userId: req.user!.userId, userEmail: req.user!.email ?? "", userName: req.user!.userId, action: `Sent abuse warning for ${report.reportNumber} (Score: ${report.threatScore}/100)`, meta: { type: "abuse_warning", reportId: report.id } });
 
@@ -871,7 +871,7 @@ router.post("/admin/abuse/:id/suspend", authenticate, requireAdmin, async (req: 
         const domain = report.targetDomain || "your hosting service";
         const html = buildAbuseSuspensionHtml({ ...branding, clientName: `${user.firstName} ${user.lastName}`, domain, abuseType: report.abuseType, reportNumber: report.reportNumber, reason: reason || "Abuse policy violation", threatScore: report.threatScore ?? 0, isCritical });
         await sendEmail({ to: user.email, subject: `[${branding.companyName}] 🚫 Service ${isCritical ? "Critical Lockdown" : "Suspended"} (${report.reportNumber})`, html, emailType: "abuse_suspension", clientId: user.id, referenceId: report.id });
-        await createNotification(user.id, "security", isCritical ? "🚨 Critical Lockdown" : "🚫 Service Suspended", `Your service has been ${isCritical ? "put in critical lockdown" : "suspended"} (Score: ${report.threatScore}/100).`, `/client/tickets`);
+        await createNotification(user.id, "security", isCritical ? "🚨 Critical Lockdown" : "🚫 Service Suspended", `Your service has been ${isCritical ? "put in critical lockdown" : "suspended"} (Score: ${report.threatScore}/100).`, `/dashboard/tickets`);
       }
     }
 
@@ -937,7 +937,7 @@ router.post("/admin/abuse/reputation/:clientId/ban", authenticate, requireAdmin,
     // Notify client
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, clientId)).limit(1);
     if (user) {
-      await createNotification(user.id, "security", "🚨 Account Permanently Banned", "Your account has been permanently banned for repeated abuse violations.", `/client/tickets`);
+      await createNotification(user.id, "security", "🚨 Account Permanently Banned", "Your account has been permanently banned for repeated abuse violations.", `/dashboard/tickets`);
     }
 
     await logAction("ban-" + clientId, "permanent_ban", `Client ${clientId} permanently banned. Reason: ${banReason}`, req.user!.userId, req.user!.email);
@@ -987,7 +987,7 @@ router.post("/admin/abuse/:id/resolve", authenticate, requireAdmin, async (req: 
 
     if (report.clientId) {
       const [user] = await db.select().from(usersTable).where(eq(usersTable.id, report.clientId)).limit(1);
-      if (user) await createNotification(user.id, "security", "✅ Abuse Case Resolved", `Your abuse report (${report.reportNumber}) has been resolved. Your service is now active.`, `/client/hosting`);
+      if (user) await createNotification(user.id, "security", "✅ Abuse Case Resolved", `Your abuse report (${report.reportNumber}) has been resolved. Your service is now active.`, `/dashboard/hosting`);
     }
 
     const [updated] = await db.update(abuseReportsTable)
@@ -1148,7 +1148,7 @@ export async function runAbuseEnforcementCron(): Promise<void> {
               const domain = report.targetDomain || "your hosting service";
               const html = buildAbuseSuspensionHtml({ ...branding, clientName: `${user.firstName} ${user.lastName}`, domain, abuseType: report.abuseType, reportNumber: report.reportNumber, reason: "Warning deadline exceeded — automatic enforcement triggered", threatScore: report.threatScore ?? 0, isCritical });
               await sendEmail({ to: user.email, subject: `[${branding.companyName}] Service Auto-Suspended — Deadline Exceeded (${report.reportNumber})`, html, emailType: "abuse_auto_suspension", clientId: user.id, referenceId: report.id });
-              await createNotification(user.id, "security", "Service Auto-Suspended", `Your service was automatically suspended after the abuse deadline expired (${report.reportNumber}).`, `/client/tickets`);
+              await createNotification(user.id, "security", "Service Auto-Suspended", `Your service was automatically suspended after the abuse deadline expired (${report.reportNumber}).`, `/dashboard/tickets`);
             }
           }
 

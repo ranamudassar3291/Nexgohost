@@ -416,7 +416,7 @@ export async function runDomainRenewalCron(): Promise<void> {
             .set({ expiryDate: newExpiry, nextDueDate: newExpiry, updatedAt: new Date() })
             .where(eq(domainsTable.id, domain.id));
           await logEmail(domain.clientId, user.email, "domain_renewed", `Domain ${domainFqdn} auto-renewed`, domain.id);
-          notify(domain.clientId, "domain", "Domain Renewed", `${domainFqdn} has been auto-renewed for 1 year.`, `/client/domains`).catch(() => {});
+          notify(domain.clientId, "domain", "Domain Renewed", `${domainFqdn} has been auto-renewed for 1 year.`, `/dashboard/domains`).catch(() => {});
           renewed++;
         }
         continue;
@@ -477,7 +477,7 @@ export async function runDomainRenewalCron(): Promise<void> {
 
       await logEmail(domain.clientId, user.email, emailType, `Domain ${domainFqdn} expires in ${daysRemaining} day(s)`, domain.id);
       notify(domain.clientId, "domain", `Domain Expiring in ${daysRemaining} Day(s)`,
-        `${domainFqdn} expires on ${expiryStr}. Renew now to keep it active.`, `/client/domains`).catch(() => {});
+        `${domainFqdn} expires on ${expiryStr}. Renew now to keep it active.`, `/dashboard/domains`).catch(() => {});
       reminded++;
     }
 
@@ -1187,7 +1187,7 @@ export async function runCartAbandonmentCron(): Promise<void> {
           ...(item?.yearlyPrice ? { yearlyPrice: item.yearlyPrice } : {}),
         });
         if (domain) params.set("domainName", domain);
-        checkoutUrl = `${getAppUrl()}/client/checkout?${params.toString()}`;
+        checkoutUrl = `${getAppUrl()}/dashboard/checkout?${params.toString()}`;
       }
 
       // Premium HTML recovery email
@@ -1472,7 +1472,7 @@ export async function runDomainLifecycleCron(): Promise<void> {
         // ─── In-app notification ────────────────────────────────────────────────
         await notify(user.id, "domain", "Domain Entered Redemption Period",
           `${domainFull} has entered the Redemption Period. A restore fee invoice has been created. Contact support immediately.`,
-          "/client/domains");
+          "/dashboard/domains");
 
       } else if (targetStatus === "pending_delete" && previousStatus !== "pending_delete") {
         // Alert for pending delete
@@ -1489,14 +1489,14 @@ export async function runDomainLifecycleCron(): Promise<void> {
 
         await notify(user.id, "domain", "Domain Pending Deletion",
           `${domainFull} has entered Pending Delete stage. Contact support immediately — this is the final stage before permanent deletion.`,
-          "/client/domains");
+          "/dashboard/domains");
 
       } else if (targetStatus === "grace_period" && previousStatus !== "grace_period"
         && previousStatus !== "redemption_period" && previousStatus !== "pending_delete") {
         // First entry into grace period — in-app only (less urgent)
         await notify(user.id, "domain", "Domain in Grace Period",
           `${domainFull} has expired and entered the Grace Period. Renew now at the standard price to restore it.`,
-          "/client/domains");
+          "/dashboard/domains");
       }
     }
 

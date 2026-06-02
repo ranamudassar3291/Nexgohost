@@ -225,7 +225,7 @@ export default function ClientDomains() {
 
   const { data: hostingServices = [] } = useQuery<Array<{ id: string; domain: string | null; status: string }>>({
     queryKey: ["client-services-domains"],
-    queryFn: () => apiFetch("/api/client/hosting"),
+    queryFn: () => apiFetch("/api/dashboard/hosting"),
     retry: false,
   });
 
@@ -493,9 +493,9 @@ export default function ClientDomains() {
       setSearchInput("");
       setOrderNameservers(["ns1.noehost.com", "ns2.noehost.com"]);
       if (lastSuccess.invoiceId) {
-        navigate(`/client/invoices/${lastSuccess.invoiceId}`);
+        navigate(`/dashboard/invoices/${lastSuccess.invoiceId}`);
       } else {
-        navigate("/client/invoices");
+        navigate("/dashboard/invoices");
       }
     }
   };
@@ -543,7 +543,7 @@ export default function ClientDomains() {
             <SuccessBanner
               success={success}
               onOrderMore={() => { setSuccess(null); setOrderView("search"); setActiveTab("my-domains"); }}
-              onPayInvoice={() => navigate("/client/invoices")}
+              onPayInvoice={() => navigate("/dashboard/invoices")}
             />
           ) : orderView === "review" ? (
             <ReviewStep
@@ -832,7 +832,7 @@ export default function ClientDomains() {
                         <p className={`text-xs font-bold truncate ${step.done ? "text-green-400" : step.pulsing ? "text-primary" : "text-muted-foreground"}`}>{step.label}</p>
                         <p className="text-[10px] text-muted-foreground truncate">{step.desc}</p>
                         {step.cta && (
-                          <button onClick={() => navigate("/client/orders/new")}
+                          <button onClick={() => navigate("/dashboard/orders/new")}
                             className="mt-1 px-2 py-0.5 rounded-md text-[10px] font-bold text-white"
                             style={{ background: "linear-gradient(135deg, #6B46C1, #8B5CF6)" }}>
                             Buy Now →
@@ -923,7 +923,7 @@ export default function ClientDomains() {
                           )}
                           {domain.canManage !== false ? (
                             <button
-                              onClick={() => navigate(`/client/domains/manage/${domain.id}`)}
+                              onClick={() => navigate(`/dashboard/domains/manage/${domain.id}`)}
                               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white shrink-0 opacity-75 group-hover:opacity-100 transition-opacity"
                               style={{ background: 'linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%)' }}
                             >
@@ -986,7 +986,7 @@ export default function ClientDomains() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">Track the status of your domain transfer requests.</p>
-            <Button variant="outline" size="sm" onClick={() => navigate("/client/domains/transfer")} className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate("/dashboard/domains/transfer")} className="gap-2">
               <ArrowRightLeft size={14} /> New Transfer
             </Button>
           </div>
@@ -997,7 +997,7 @@ export default function ClientDomains() {
               <ArrowRightLeft className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-40" />
               <h3 className="text-xl font-bold text-foreground">No transfer requests</h3>
               <p className="text-muted-foreground mt-2">Initiate a domain transfer to bring your domains to Noehost.</p>
-              <Button onClick={() => navigate("/client/domains/transfer")} className="mt-6 bg-primary text-white gap-2">
+              <Button onClick={() => navigate("/dashboard/domains/transfer")} className="mt-6 bg-primary text-white gap-2">
                 <ArrowRightLeft size={16} /> Transfer a Domain
               </Button>
             </div>
@@ -1164,7 +1164,7 @@ export default function ClientDomains() {
                   <button
                     onClick={() => {
                       setUpsellDomain(null);
-                      navigate(`/client/orders/new?plan=${bestSharedPlan.id}&domain=${encodeURIComponent(upsellDomain.name + upsellDomain.tld)}`);
+                      navigate(`/dashboard/orders/new?plan=${bestSharedPlan.id}&domain=${encodeURIComponent(upsellDomain.name + upsellDomain.tld)}`);
                     }}
                     className="w-full h-11 rounded-xl text-sm font-bold text-white shadow-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
                     style={{ background: "linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%)" }}
@@ -1179,7 +1179,7 @@ export default function ClientDomains() {
                   <p className="font-semibold text-foreground text-sm">Browse Hosting Plans</p>
                   <p className="text-xs text-muted-foreground mt-1">Find the right plan for your needs.</p>
                   <button
-                    onClick={() => { setUpsellDomain(null); navigate("/client/orders/new"); }}
+                    onClick={() => { setUpsellDomain(null); navigate("/dashboard/orders/new"); }}
                     className="mt-4 h-9 px-5 rounded-xl text-sm font-semibold text-white inline-flex items-center gap-2 hover:opacity-90 transition-opacity"
                     style={{ background: "linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%)" }}
                   >
@@ -1253,7 +1253,7 @@ export default function ClientDomains() {
                       : isCancelled ? "This domain has been cancelled. Management settings are unavailable."
                       : "Domain settings cannot be changed while a transfer is in progress."}
                   </p>
-                  {isPending && (<Button onClick={() => { setManageDomainModal(null); navigate("/client/invoices"); }} className="gap-2"><Receipt size={15} /> Pay Now</Button>)}
+                  {isPending && (<Button onClick={() => { setManageDomainModal(null); navigate("/dashboard/invoices"); }} className="gap-2"><Receipt size={15} /> Pay Now</Button>)}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-[1fr_260px] divide-y sm:divide-y-0 sm:divide-x divide-border">
@@ -1277,7 +1277,7 @@ export default function ClientDomains() {
                               <p className="text-[10px] text-muted-foreground truncate">{step.desc}</p>
                             </div>
                             {step.cta && (
-                              <button onClick={() => { setManageDomainModal(null); navigate("/client/orders/new"); }}
+                              <button onClick={() => { setManageDomainModal(null); navigate("/dashboard/orders/new"); }}
                                 className="px-2.5 py-1 rounded-lg text-[10px] font-black text-white shrink-0"
                                 style={{ background: "linear-gradient(135deg, #6B46C1, #8B5CF6)" }}>
                                 Buy Now →
@@ -1314,7 +1314,7 @@ export default function ClientDomains() {
                             <p className="text-[10px] text-muted-foreground font-mono truncate">{md.nameservers?.[0] ?? "ns1.noehost.com"}</p>
                           </div>
                         </button>
-                        <button onClick={() => { setManageDomainModal(null); navigate(`/client/dns/${md.id}`); }}
+                        <button onClick={() => { setManageDomainModal(null); navigate(`/dashboard/dns/${md.id}`); }}
                           className="flex items-center gap-2.5 p-3 bg-secondary/40 border border-border rounded-xl hover:border-violet-500/40 hover:bg-violet-500/5 transition-all text-left">
                           <div className="w-8 h-8 bg-violet-500/10 rounded-lg flex items-center justify-center shrink-0">
                             <Network size={13} className="text-violet-400" />
@@ -1505,7 +1505,7 @@ export default function ClientDomains() {
           onSuccess={(invoiceId, invoiceNumber) => {
             setRenewModalItem(null);
             toast({ title: "Renewal order placed", description: `Invoice ${invoiceNumber} created successfully.` });
-            navigate(`/client/invoices/${invoiceId}`);
+            navigate(`/dashboard/invoices/${invoiceId}`);
           }}
         />
       )}

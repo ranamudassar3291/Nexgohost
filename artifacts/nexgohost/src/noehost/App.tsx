@@ -251,10 +251,8 @@ const AppRoutes: React.FC<{ user: any; setUser: (u: any) => void }> = ({ user, s
         {/* Removed routes — redirect to nexgohost */}
         <Route path="/login" element={<Navigate to="/login" replace />} />
         <Route path="/register" element={<Navigate to="/register" replace />} />
-        <Route path="/cart" element={<Navigate to="/client/cart" replace />} />
-        <Route path="/checkout" element={<Navigate to="/client/checkout" replace />} />
-        <Route path="/dashboard" element={<Navigate to="/client/" replace />} />
-        <Route path="/dashboard/*" element={<Navigate to="/client/" replace />} />
+        <Route path="/cart" element={<Navigate to="/dashboard/cart" replace />} />
+        <Route path="/checkout" element={<Navigate to="/dashboard/checkout" replace />} />
 
         {/* 404 fallback */}
         <Route path="*" element={<NotFound />} />

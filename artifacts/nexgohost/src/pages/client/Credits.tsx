@@ -73,7 +73,7 @@ export default function Credits() {
     onSuccess: (invoice: any) => {
       qc.invalidateQueries({ queryKey: ["my-credits"] });
       toast({ title: "Invoice created!", description: `Invoice ${invoice.invoiceNumber} is ready. Pay it to top up your wallet.` });
-      setLocation(`/client/invoices/${invoice.id}`);
+      setLocation(`/dashboard/invoices/${invoice.id}`);
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });

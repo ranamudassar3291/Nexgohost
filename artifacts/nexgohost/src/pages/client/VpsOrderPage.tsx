@@ -409,7 +409,7 @@ export default function VpsOrderPage() {
         <p className="text-gray-400 text-sm mb-8">Login credentials will be emailed once your server is activated.</p>
         <div className="space-y-3">
           {invoiceId && (
-            <button onClick={() => setLocation(`/client/invoices/${invoiceId}`)}
+            <button onClick={() => setLocation(`/dashboard/invoices/${invoiceId}`)}
               className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors">
               View Invoice
             </button>

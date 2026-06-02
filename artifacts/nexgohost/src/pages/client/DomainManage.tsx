@@ -96,7 +96,7 @@ const EPP_REASONS = [
 ];
 
 export default function DomainManage() {
-  const [, params] = useRoute("/client/domains/manage/:id");
+  const [, params] = useRoute("/dashboard/domains/manage/:id");
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const { formatPrice } = useCurrency();
@@ -149,7 +149,7 @@ export default function DomainManage() {
 
   const { data: hostingServices = [] } = useQuery<Array<{ id: string; domain: string | null; status: string }>>({
     queryKey: ["client-services-domains"],
-    queryFn: () => apiFetch("/api/client/hosting"),
+    queryFn: () => apiFetch("/api/dashboard/hosting"),
     retry: false,
   });
 
@@ -167,7 +167,7 @@ export default function DomainManage() {
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <Globe size={48} className="text-muted-foreground opacity-30" />
         <p className="font-semibold text-foreground">Domain not found</p>
-        <button onClick={() => navigate("/client/domains")}
+        <button onClick={() => navigate("/dashboard/domains")}
           className="text-sm text-primary hover:underline flex items-center gap-1.5">
           <ArrowLeft size={14} /> Back to Domains
         </button>
@@ -325,7 +325,7 @@ export default function DomainManage() {
     <div className="space-y-6 pb-10">
 
       {/* ── Back nav ── */}
-      <button onClick={() => navigate("/client/domains")}
+      <button onClick={() => navigate("/dashboard/domains")}
         className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
         <ArrowLeft size={15} /> Back to Domains
       </button>
@@ -338,7 +338,7 @@ export default function DomainManage() {
             <span>{domain.manageLockReason}</span>
           </div>
           <button
-            onClick={() => navigate("/client/invoices")}
+            onClick={() => navigate("/dashboard/invoices")}
             className="shrink-0 text-xs font-semibold text-white px-3 py-1.5 rounded-lg"
             style={{ background: "linear-gradient(135deg,#6B46C1,#8B5CF6)" }}
           >
@@ -497,7 +497,7 @@ export default function DomainManage() {
                 {hasHosting
                   ? <p className="text-[10px] text-green-400 font-medium mt-0.5">Active ✓</p>
                   : isActive
-                  ? <button onClick={() => navigate("/client/orders/new")}
+                  ? <button onClick={() => navigate("/dashboard/orders/new")}
                       className="text-[10px] text-primary font-semibold hover:underline mt-0.5 flex items-center gap-0.5 mx-auto">
                       Get Hosting <ExternalLink size={9} />
                     </button>
@@ -928,7 +928,7 @@ export default function DomainManage() {
           {[".net", ".org", ".pk", ".co", ".info", ".biz", ".io", ".com.pk"].filter(t => t !== domain.tld).slice(0, 6).map(tld => (
             <button
               key={tld}
-              onClick={() => navigate(`/client/domains?tab=order&domain=${encodeURIComponent(domain.name + tld)}`)}
+              onClick={() => navigate(`/dashboard/domains?tab=order&domain=${encodeURIComponent(domain.name + tld)}`)}
               className="flex items-center gap-2 px-3.5 py-2.5 bg-card border border-border rounded-xl hover:border-primary/40 transition-colors group"
             >
               <div style={{

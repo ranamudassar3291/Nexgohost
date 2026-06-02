@@ -118,7 +118,7 @@ export default function EmailDnsSetup() {
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
           <p className="text-gray-500">Order not found.</p>
-          <Button className="mt-4" onClick={() => navigate("/client/email")}>Back</Button>
+          <Button className="mt-4" onClick={() => navigate("/dashboard/email")}>Back</Button>
         </div>
       </div>
     );

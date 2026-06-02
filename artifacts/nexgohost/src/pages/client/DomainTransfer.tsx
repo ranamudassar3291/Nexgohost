@@ -512,11 +512,11 @@ export default function DomainTransfer() {
                   Transfer Another
                 </Button>
                 {transferResult?.invoice && (
-                  <Button variant="outline" onClick={() => setLocation(`/client/invoices`)} className="gap-2">
+                  <Button variant="outline" onClick={() => setLocation(`/dashboard/invoices`)} className="gap-2">
                     <FileText size={16} /> Pay Invoice
                   </Button>
                 )}
-                <Button onClick={() => setLocation("/client/domains")} className="gap-2">
+                <Button onClick={() => setLocation("/dashboard/domains")} className="gap-2">
                   <Package size={16} /> View Domains
                 </Button>
               </div>

@@ -164,7 +164,7 @@ function HelpPage({ children }: { children: React.ReactNode }) {
           <a href="/login" className="flex items-center gap-2 font-bold text-primary text-lg">Noehost</a>
           <div className="flex gap-3">
             <a href="/login" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Sign In</a>
-            <a href="/client/orders/new" className="text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors">Get Hosting</a>
+            <a href="/dashboard/orders/new" className="text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors">Get Hosting</a>
           </div>
         </div>
       </header>
@@ -237,7 +237,7 @@ function OrderBySlug() {
           <h2 className="text-xl font-bold text-gray-900 mb-1">Plan Not Found</h2>
           <p className="text-gray-500 text-sm max-w-sm">{err}. Please browse our available plans and choose one to get started.</p>
         </div>
-        <a href="/client/orders/new" className="px-6 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition-colors shadow">
+        <a href="/dashboard/orders/new" className="px-6 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition-colors shadow">
           Browse All Plans →
         </a>
       </div>
@@ -285,7 +285,7 @@ function CartRedirect() {
   if (gid) {
     return <CheckoutLayout allowGuest><NewOrder initialGroupId={gid}/></CheckoutLayout>;
   }
-  return <Redirect to="/client/orders/new" />;
+  return <Redirect to="/dashboard/orders/new" />;
 }
 
 // ─── API Health Wrapper ────────────────────────────────────────────────────────
@@ -312,14 +312,14 @@ function RouterRoot() {
       <Route path="/admin/noe"        component={AdminLogin}      />
       <Route path="/admin/login"><Redirect to="/admin/noe" /></Route>
       <Route path="/login"     component={ClientLogin}     />
-      <Route path="/client/register"><Redirect to="/register" /></Route>
+      <Route path="/register"><Redirect to="/register" /></Route>
       <Route path="/register"         component={Register}        />
       <Route path="/forgot-password"  component={ForgotPassword}  />
       <Route path="/forget-password"  component={ForgotPassword}  />
       <Route path="/reset-password"   component={ResetPassword}   />
       <Route path="/vps"              component={VpsHosting}      />
       {/* /order root → unified checkout */}
-      <Route path="/order"><Redirect to="/client/orders/new" /></Route>
+      <Route path="/order"><Redirect to="/dashboard/orders/new" /></Route>
 
       <Route path="/login">
         {!isLoading && user ? (
@@ -575,7 +575,7 @@ function RouterRoot() {
       <Route path="/dashboard">
         <ClientPage><ClientDashboard /></ClientPage>
       </Route>
-      <Route path="/client/vps/:id">
+      <Route path="/dashboard/vps/:id">
         <ClientPage><VpsManage /></ClientPage>
       </Route>
       <Route path="/vps-manage/:orderId">
@@ -596,43 +596,43 @@ function RouterRoot() {
       <Route path="/checkout/email-hosting">
         <EmailHostingCheckout />
       </Route>
-      <Route path="/client/email">
+      <Route path="/dashboard/email">
         <ClientPage><ClientEmailOrders /></ClientPage>
       </Route>
-      <Route path="/client/hosting/:id/webmail">
+      <Route path="/dashboard/hosting/:id/webmail">
         <ClientPage><ClientWebmail /></ClientPage>
       </Route>
-      <Route path="/client/hosting/:id">
+      <Route path="/dashboard/hosting/:id">
         <ClientPage><ClientServiceDetail /></ClientPage>
       </Route>
-      <Route path="/client/hosting">
+      <Route path="/dashboard/hosting">
         <ClientPage><ClientHosting /></ClientPage>
       </Route>
-      <Route path="/client/domains/manage/:id">
+      <Route path="/dashboard/domains/manage/:id">
         <ClientPage><DomainManage /></ClientPage>
       </Route>
-      <Route path="/client/domains">
+      <Route path="/dashboard/domains">
         <ClientPage><ClientDomains /></ClientPage>
       </Route>
-      <Route path="/client/invoices/:id">
+      <Route path="/dashboard/invoices/:id">
         <ClientPage><InvoiceDetail /></ClientPage>
       </Route>
-      <Route path="/client/billing">
+      <Route path="/dashboard/billing">
         <ClientPage><ClientInvoices /></ClientPage>
       </Route>
-      <Route path="/client/invoices">
-        <Redirect to="/client/billing" />
+      <Route path="/dashboard/invoices">
+        <Redirect to="/dashboard/billing" />
       </Route>
-      <Route path="/client/payment/return">
+      <Route path="/dashboard/payment/return">
         <ClientPage><SafepayReturn /></ClientPage>
       </Route>
-      <Route path="/client/tickets/:id">
+      <Route path="/dashboard/tickets/:id">
         <ClientPage><ClientTicketDetail /></ClientPage>
       </Route>
-      <Route path="/client/tickets">
+      <Route path="/dashboard/tickets">
         <ClientPage><ClientTickets /></ClientPage>
       </Route>
-      <Route path="/client/migrations">
+      <Route path="/dashboard/migrations">
         <ClientPage><ClientMigrations /></ClientPage>
       </Route>
       {/* ── Unified short-link & direct-order routes ── */}
@@ -648,11 +648,11 @@ function RouterRoot() {
       <Route path="/order/vps" component={OrderByVpsId}/>
       {/* /order/:slug — slug-based clean short link (AFTER specific /order/* routes) */}
       <Route path="/order/:slug" component={OrderBySlug}/>
-      <Route path="/client/orders/new" component={ClientOrdersNewRedirect}/>
+      <Route path="/dashboard/orders/new" component={ClientOrdersNewRedirect}/>
       {/* /cart — backward compat, redirects to unified checkout */}
       <Route path="/cart" component={CartRedirect}/>
 
-      <Route path="/client/orders/new">
+      <Route path="/dashboard/orders/new">
         {() => {
           const sp     = new URLSearchParams(window.location.search);
           const pid    = sp.get("plan_id") ?? "";
@@ -663,53 +663,53 @@ function RouterRoot() {
           return <CheckoutLayout allowGuest><NewOrder initialPackageId={pid || undefined} /></CheckoutLayout>;
         }}
       </Route>
-      <Route path="/client/orders">
+      <Route path="/dashboard/orders">
         <ClientPage><ClientOrders /></ClientPage>
       </Route>
-      <Route path="/client/cart">
-        <Redirect to="/client/orders/new" />
+      <Route path="/dashboard/cart">
+        <Redirect to="/dashboard/orders/new" />
       </Route>
-      <Route path="/client/checkout">
+      <Route path="/dashboard/checkout">
         <CheckoutLayout allowGuest><Checkout /></CheckoutLayout>
       </Route>
-      <Route path="/client/account">
+      <Route path="/dashboard/account">
         <ClientPage><ClientAccount /></ClientPage>
       </Route>
-      <Route path="/client/affiliate">
-        <Redirect to="/client/billing?tab=affiliate" />
+      <Route path="/dashboard/affiliate">
+        <Redirect to="/dashboard/billing?tab=affiliate" />
       </Route>
-      <Route path="/client/credits">
-        <Redirect to="/client/billing?tab=credits" />
+      <Route path="/dashboard/credits">
+        <Redirect to="/dashboard/billing?tab=credits" />
       </Route>
-      <Route path="/client/security">
+      <Route path="/dashboard/security">
         <ClientPage><Security /></ClientPage>
       </Route>
-      <Route path="/client/team">
+      <Route path="/dashboard/team">
         <ClientPage><TeamAccess /></ClientPage>
       </Route>
-      <Route path="/client/growth">
+      <Route path="/dashboard/growth">
         <ClientPage><GrowthSuite /></ClientPage>
       </Route>
-      <Route path="/client/reseller">
+      <Route path="/dashboard/reseller">
         <ClientPage><ResellerDashboard /></ClientPage>
       </Route>
-      <Route path="/client/domain-search">
+      <Route path="/dashboard/domain-search">
         <ClientPage><DomainSearch /></ClientPage>
       </Route>
-      <Route path="/client/register-domain">
+      <Route path="/register-domain">
         <ClientPage><DomainSearch /></ClientPage>
       </Route>
-      <Route path="/client/domains/transfer">
+      <Route path="/dashboard/domains/transfer">
         <ClientPage><DomainTransfer /></ClientPage>
       </Route>
-      <Route path="/client/dns/:id">
+      <Route path="/dashboard/dns/:id">
         <ClientPage><DomainDns /></ClientPage>
       </Route>
       {/* ── Route aliases ── */}
-      <Route path="/client/services">
+      <Route path="/dashboard/services">
         <ClientPage><ClientHosting /></ClientPage>
       </Route>
-      <Route path="/client/profile">
+      <Route path="/dashboard/profile">
         <ClientPage><ClientAccount /></ClientPage>
       </Route>
       {/* Legacy admin alias redirects */}

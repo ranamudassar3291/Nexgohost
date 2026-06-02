@@ -226,7 +226,7 @@ export default function VpsManagePage() {
       });
       const d = await r.json();
       if (d.invoiceId) {
-        navigate(`/client/invoices/${d.invoiceId}`);
+        navigate(`/dashboard/invoices/${d.invoiceId}`);
       } else {
         setActionMsg(d.message || "Renewal invoice created");
         setTimeout(() => setActionMsg(null), 6000);

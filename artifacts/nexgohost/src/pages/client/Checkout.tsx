@@ -280,7 +280,7 @@ export default function Checkout() {
     const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
     if (!token) return;
     const domain = sessionStorage.getItem("domain_search") || localStorage.getItem("order_wizard_domain") || undefined;
-    fetch("/api/client/cart-session", {
+    fetch("/api/dashboard/cart-session", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ packageId, packageName, domainName: domain }),
@@ -390,13 +390,13 @@ export default function Checkout() {
 
       if (cartSessionIdRef.current) {
         const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
-        fetch(`/api/client/cart-session/${cartSessionIdRef.current}/complete`, {
+        fetch(`/api/dashboard/cart-session/${cartSessionIdRef.current}/complete`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         }).catch(() => {});
       }
 
-      setLocation(data.invoice?.id ? `/client/invoices/${data.invoice.id}` : "/client/invoices");
+      setLocation(data.invoice?.id ? `/dashboard/invoices/${data.invoice.id}` : "/dashboard/invoices");
     } catch (err: any) {
       toast({ title: "Order failed", description: err.message, variant: "destructive" });
     } finally { setPlacing(false); }

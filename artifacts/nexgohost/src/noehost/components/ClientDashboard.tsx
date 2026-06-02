@@ -350,7 +350,7 @@ const ClientDashboard: React.FC<DashboardProps> = ({ user, setUser }) => {
     const handleCreateTicket = async (e: React.FormEvent) => {
       e.preventDefault();
       setSubmitting(true);
-      await fetch('/api/client/tickets', {
+      await fetch('/api/dashboard/tickets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subject, message }),

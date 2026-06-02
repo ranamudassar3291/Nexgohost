@@ -130,14 +130,14 @@ const Domains: React.FC = () => {
                     )}
                     <div className={`flex flex-col gap-1.5 ${tld.transfer === 0 ? 'mt-3' : ''}`}>
                       <a
-                        href={`/client/domains?tab=order&tld=${encodeURIComponent(tld.ext)}`}
+                        href={`/dashboard/domains?tab=order&tld=${encodeURIComponent(tld.ext)}`}
                         className="block w-full py-2 border border-primary text-primary hover:bg-primary hover:text-white font-black text-xs rounded-xl transition-all uppercase tracking-widest"
                       >
                         Register
                       </a>
                       {tld.transfer > 0 && (
                         <a
-                          href={`/client/domains?tab=transfer&tld=${encodeURIComponent(tld.ext)}`}
+                          href={`/dashboard/domains?tab=transfer&tld=${encodeURIComponent(tld.ext)}`}
                           className="flex items-center justify-center gap-1 w-full py-2 border border-orange-400/40 text-orange-500 hover:bg-orange-500 hover:text-white font-black text-xs rounded-xl transition-all uppercase tracking-widest"
                         >
                           <RefreshCw size={11} /> Transfer
@@ -180,7 +180,7 @@ const Domains: React.FC = () => {
           <h2 className="text-3xl font-black text-white mb-4">Ready to Claim Your Domain?</h2>
           <p className="text-white/80 text-base font-medium mb-8">Join thousands of businesses who trust Noehost for their domain needs.</p>
           <a
-            href="/client/domains?tab=order"
+            href="/dashboard/domains?tab=order"
             className="inline-flex items-center gap-2 px-10 py-4 bg-white text-primary font-black rounded-2xl hover:bg-slate-50 transition-all shadow-xl uppercase tracking-widest text-sm"
           >
             Add to Cart <ArrowRight size={18} />

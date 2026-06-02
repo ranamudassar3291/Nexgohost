@@ -423,7 +423,7 @@ function ServiceUsageBar({ serviceId }: { serviceId: string }) {
   const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
   const { data: usage } = useQuery<UsageData>({
     queryKey: ["hosting-usage", serviceId],
-    queryFn: () => fetch(`/api/client/hosting/${serviceId}/usage`, {
+    queryFn: () => fetch(`/api/dashboard/hosting/${serviceId}/usage`, {
       headers: { Authorization: `Bearer ${token}` }
     }).then(r => r.ok ? r.json() : null).catch(() => null),
     staleTime: 60_000, retry: false,
@@ -524,7 +524,7 @@ function HostingTile({ svc, onSso, ssoLoading }: {
 
       {/* Card Actions */}
       <div className="px-5 py-3.5 flex items-center gap-2 mt-auto" style={{ background: "#FAFAFA" }}>
-        <Link href={`/client/hosting`} className="flex-1">
+        <Link href={`/dashboard/hosting`} className="flex-1">
           <button
             className="w-full h-8 rounded-lg text-xs font-semibold transition-all"
             style={{
@@ -615,7 +615,7 @@ function DomainTile({ domain, navigate }: { domain: DomainItem; navigate: (path:
       </div>
       <div className="px-5 py-3.5 flex gap-2 mt-auto" style={{ background: "#FAFAFA" }}>
         <button
-          onClick={() => navigate(`/client/domains`)}
+          onClick={() => navigate(`/dashboard/domains`)}
           className="flex-1 h-8 rounded-lg text-xs font-semibold transition-all"
           style={{
             background: "linear-gradient(135deg,#6B46C1 0%,#7C5DE2 100%)",
@@ -627,7 +627,7 @@ function DomainTile({ domain, navigate }: { domain: DomainItem; navigate: (path:
         </button>
         {expiring && (
           <button
-            onClick={() => navigate("/client/domains")}
+            onClick={() => navigate("/dashboard/domains")}
             className="h-8 px-3 rounded-lg text-xs font-semibold border"
             style={{ background: "#FFF7ED", color: "#C2410C", border: "1px solid #FED7AA" }}
           >
@@ -716,8 +716,8 @@ export default function ClientDashboard() {
     setSsoLoading(prev => ({ ...prev, [serviceId]: type }));
     try {
       const endpoint = type === "cpanel"
-        ? `/api/client/hosting/${serviceId}/cpanel-login`
-        : `/api/client/hosting/${serviceId}/webmail-login`;
+        ? `/api/dashboard/hosting/${serviceId}/cpanel-login`
+        : `/api/dashboard/hosting/${serviceId}/webmail-login`;
       const result = await apiFetch(endpoint, { method: "POST" });
       if (result.url) window.open(result.url, "_blank");
       else throw new Error("No login URL returned");
@@ -740,7 +740,7 @@ export default function ClientDashboard() {
 
   const { data: allServices = [] } = useQuery<HostingService[]>({
     queryKey: ["client-services-dashboard"],
-    queryFn: () => apiFetch("/api/client/hosting").then(d => d || []),
+    queryFn: () => apiFetch("/api/dashboard/hosting").then(d => d || []),
   });
   const { data: allDomains = [] } = useQuery<DomainItem[]>({
     queryKey: ["client-domains-dashboard"],
@@ -890,7 +890,7 @@ export default function ClientDashboard() {
           <p className="text-sm font-medium" style={{ color: "#92400E" }}>
             <span className="font-bold">{pendingOrders}</span> order{pendingOrders > 1 ? "s" : ""} pending review — we'll notify you once it's approved.
           </p>
-          <Link href="/client/orders" className="ml-auto">
+          <Link href="/dashboard/orders" className="ml-auto">
             <span className="text-xs font-semibold" style={{ color: "#D97706" }}>View →</span>
           </Link>
         </div>
@@ -935,16 +935,16 @@ export default function ClientDashboard() {
       {/* ── Stat Summary Cards ── */}
       {!q && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard title="My Services" value={allServices.length} icon={Server} href="/client/hosting" color="#6B46C1" />
-          <StatCard title="Domains" value={allDomains.length} icon={Globe} href="/client/domains" color="#059669" />
-          <StatCard title="Invoices" value={stats.unpaidInvoices} icon={FileText} href="/client/billing" color="#EF4444" highlight={stats.unpaidInvoices > 0} />
-          <StatCard title="Support Ticket" value={stats.openTickets} icon={Ticket} href="/client/tickets" color="#F59E0B" />
+          <StatCard title="My Services" value={allServices.length} icon={Server} href="/dashboard/hosting" color="#6B46C1" />
+          <StatCard title="Domains" value={allDomains.length} icon={Globe} href="/dashboard/domains" color="#059669" />
+          <StatCard title="Invoices" value={stats.unpaidInvoices} icon={FileText} href="/dashboard/billing" color="#EF4444" highlight={stats.unpaidInvoices > 0} />
+          <StatCard title="Support Ticket" value={stats.openTickets} icon={Ticket} href="/dashboard/tickets" color="#F59E0B" />
         </div>
       )}
 
       {/* ── Credit Balance ── */}
       {!q && creditBalance > 0 && (
-        <Link href="/client/credits">
+        <Link href="/dashboard/credits">
           <div
             className="flex items-center gap-4 p-5 rounded-2xl cursor-pointer transition-all hover:-translate-y-0.5"
             style={{ background: "#ECFDF5", border: "1px solid #A7F3D0", borderRadius: "16px" }}
@@ -970,8 +970,8 @@ export default function ClientDashboard() {
         const s1 = setupProgress.step1;
         const s2 = setupProgress.step2;
         const steps = [
-          { label: "Claim Your Domain", icon: Globe, done: s1, desc: s1 ? setupProgress.primaryDomain ?? "Your domain is ready." : "Register a domain to get started.", cta: !s1 ? { label: "Get a Domain", href: "/client/domains" } : null, locked: false },
-          { label: "Launch Hosting",   icon: Server, done: s2, desc: s2 ? "Hosting is live and running."       : "Connect your domain to a hosting plan.",   cta: !s2 ? { label: "Get Hosting", href: "/client/orders/new" } : null, locked: !s1 },
+          { label: "Claim Your Domain", icon: Globe, done: s1, desc: s1 ? setupProgress.primaryDomain ?? "Your domain is ready." : "Register a domain to get started.", cta: !s1 ? { label: "Get a Domain", href: "/dashboard/domains" } : null, locked: false },
+          { label: "Launch Hosting",   icon: Server, done: s2, desc: s2 ? "Hosting is live and running."       : "Connect your domain to a hosting plan.",   cta: !s2 ? { label: "Get Hosting", href: "/dashboard/orders/new" } : null, locked: !s1 },
           { label: "You're Live",      icon: Rocket, done: false, desc: "Complete the steps above to go live.", cta: null, locked: !s1 || !s2 },
         ];
         return (
@@ -1026,7 +1026,7 @@ export default function ClientDashboard() {
               )}
             </div>
             <div className="flex flex-wrap justify-center gap-3">
-              <Link href="/client/hosting"><button className="px-5 py-2.5 rounded-xl text-sm font-bold text-white border border-white/20" style={{ background: "linear-gradient(135deg,#6B46C1,#7C5DE2)" }}>Manage Website</button></Link>
+              <Link href="/dashboard/hosting"><button className="px-5 py-2.5 rounded-xl text-sm font-bold text-white border border-white/20" style={{ background: "linear-gradient(135deg,#6B46C1,#7C5DE2)" }}>Manage Website</button></Link>
               {setupProgress.siteUrl && <a href={setupProgress.siteUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white border border-white/20 hover:bg-white/10 transition-all"><ExternalLink size={14} /> Open Site</a>}
             </div>
           </div>
@@ -1053,10 +1053,10 @@ export default function ClientDashboard() {
           </div>
           <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-2">
             {[
-              { label: "Log in to your control panel", href: "/client/hosting" },
-              { label: "Connect or transfer a domain", href: "/client/domains" },
-              { label: "Create your business email", href: "/client/hosting" },
-              { label: "Get help from our team", href: "/client/tickets" },
+              { label: "Log in to your control panel", href: "/dashboard/hosting" },
+              { label: "Connect or transfer a domain", href: "/dashboard/domains" },
+              { label: "Create your business email", href: "/dashboard/hosting" },
+              { label: "Get help from our team", href: "/dashboard/tickets" },
             ].map(g => (
               <Link key={g.label} href={g.href}
                 className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors"
@@ -1074,10 +1074,10 @@ export default function ClientDashboard() {
       {!q && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
-            { label: "Hosting", href: "/client/hosting", icon: Server },
-            { label: "Domains", href: "/client/domains", icon: Globe },
-            { label: "Orders", href: "/client/orders", icon: ShoppingCart },
-            { label: "Support", href: "/client/tickets", icon: Ticket },
+            { label: "Hosting", href: "/dashboard/hosting", icon: Server },
+            { label: "Domains", href: "/dashboard/domains", icon: Globe },
+            { label: "Orders", href: "/dashboard/orders", icon: ShoppingCart },
+            { label: "Support", href: "/dashboard/tickets", icon: Ticket },
           ].map(item => {
             const Icon = item.icon;
             return (
@@ -1107,7 +1107,7 @@ export default function ClientDashboard() {
                 </div>
                 <h3 className="font-display font-bold text-sm" style={{ color: "#111827" }}>Recent Invoices</h3>
               </div>
-              <Link href="/client/billing"><span className="text-xs font-semibold flex items-center gap-1" style={{ color: "#6B46C1" }}>View All <ArrowRight size={11} /></span></Link>
+              <Link href="/dashboard/billing"><span className="text-xs font-semibold flex items-center gap-1" style={{ color: "#6B46C1" }}>View All <ArrowRight size={11} /></span></Link>
             </div>
             <div>
               {!stats.recentInvoices?.length ? (
@@ -1117,7 +1117,7 @@ export default function ClientDashboard() {
                   key={inv.id}
                   className="flex items-center justify-between px-5 py-3.5 cursor-pointer transition-colors hover:bg-gray-50"
                   style={{ borderBottom: "1px solid #F9FAFB" }}
-                  onClick={() => navigate(`/client/invoices/${inv.id}`)}
+                  onClick={() => navigate(`/dashboard/invoices/${inv.id}`)}
                 >
                   <div>
                     <p className="text-sm font-semibold font-mono" style={{ color: "#111827" }}>{fmtInvNum(inv.invoiceNumber)}</p>
@@ -1146,7 +1146,7 @@ export default function ClientDashboard() {
                 </div>
                 <h3 className="font-display font-bold text-sm" style={{ color: "#111827" }}>Recent Orders</h3>
               </div>
-              <Link href="/client/orders"><span className="text-xs font-semibold flex items-center gap-1" style={{ color: "#6B46C1" }}>View All <ArrowRight size={11} /></span></Link>
+              <Link href="/dashboard/orders"><span className="text-xs font-semibold flex items-center gap-1" style={{ color: "#6B46C1" }}>View All <ArrowRight size={11} /></span></Link>
             </div>
             <div>
               {recentOrders.length === 0 ? (
@@ -1190,7 +1190,7 @@ export default function ClientDashboard() {
               </div>
               <h3 className="font-display font-bold text-sm" style={{ color: "#111827" }}>Support Tickets</h3>
             </div>
-            <Link href="/client/tickets"><span className="text-xs font-semibold flex items-center gap-1" style={{ color: "#6B46C1" }}>View All <ArrowRight size={11} /></span></Link>
+            <Link href="/dashboard/tickets"><span className="text-xs font-semibold flex items-center gap-1" style={{ color: "#6B46C1" }}>View All <ArrowRight size={11} /></span></Link>
           </div>
           <div>
             {stats.recentTickets.map((ticket, i) => (
@@ -1198,7 +1198,7 @@ export default function ClientDashboard() {
                 key={ticket.id}
                 className="flex items-center justify-between px-5 py-3.5 cursor-pointer hover:bg-gray-50 transition-colors"
                 style={{ borderBottom: i < stats.recentTickets!.length - 1 ? "1px solid #F9FAFB" : "none" }}
-                onClick={() => navigate(`/client/tickets/${ticket.id}`)}
+                onClick={() => navigate(`/dashboard/tickets/${ticket.id}`)}
               >
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold truncate" style={{ color: "#111827" }}>{ticket.subject}</p>

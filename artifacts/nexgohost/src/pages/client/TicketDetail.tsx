@@ -132,7 +132,7 @@ export default function ClientTicketDetail() {
     <div className="space-y-6 max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-start gap-4">
-        <button onClick={() => setLocation("/client/tickets")} className="p-2 rounded-xl bg-secondary text-muted-foreground hover:text-foreground transition-colors mt-1">
+        <button onClick={() => setLocation("/dashboard/tickets")} className="p-2 rounded-xl bg-secondary text-muted-foreground hover:text-foreground transition-colors mt-1">
           <ArrowLeft size={18} />
         </button>
         <div className="flex-1">
@@ -197,7 +197,7 @@ export default function ClientTicketDetail() {
         <div className="bg-card border border-border rounded-2xl p-6 text-center">
           <CheckCircle size={28} className="mx-auto text-muted-foreground mb-2" />
           <p className="text-muted-foreground text-sm">This ticket is closed. Open a new ticket if you need further help.</p>
-          <Button onClick={() => setLocation("/client/tickets")} variant="outline" className="mt-4 gap-2">
+          <Button onClick={() => setLocation("/dashboard/tickets")} variant="outline" className="mt-4 gap-2">
             <MessageSquare size={15} /> View All Tickets
           </Button>
         </div>

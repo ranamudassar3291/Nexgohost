@@ -89,7 +89,7 @@ export default function DomainCartCheckout() {
       }
     } catch {}
     // Nothing in cart — redirect back to domain search
-    setLocation("/client/domains");
+    setLocation("/dashboard/domains");
   }, []);
 
   const { data: creditData } = useQuery<{ creditBalance: string }>({
@@ -130,7 +130,7 @@ export default function DomainCartCheckout() {
       const next = prev.filter(c => c.domain !== domain);
       if (next.length === 0) {
         localStorage.removeItem(DOMAIN_CART_KEY);
-        setLocation("/client/domain-search");
+        setLocation("/dashboard/domain-search");
       } else {
         localStorage.setItem(DOMAIN_CART_KEY, JSON.stringify(next));
       }
@@ -262,11 +262,11 @@ export default function DomainCartCheckout() {
           <div className="flex flex-col gap-3">
             {successInvoiceId && (
               <Button className="w-full gap-2" style={{ background: BRAND, border: "none" }}
-                onClick={() => setLocation(`/client/invoices/${successInvoiceId}`)}>
+                onClick={() => setLocation(`/dashboard/invoices/${successInvoiceId}`)}>
                 View Invoice <ChevronRight size={15} />
               </Button>
             )}
-            <Button variant="outline" className="w-full" onClick={() => setLocation("/client/domains")}>
+            <Button variant="outline" className="w-full" onClick={() => setLocation("/dashboard/domains")}>
               My Domains
             </Button>
           </div>
@@ -294,7 +294,7 @@ export default function DomainCartCheckout() {
             </div>
             <span className="font-semibold text-foreground text-sm">Domain Checkout</span>
           </div>
-          <button onClick={() => setLocation("/client/domains")}
+          <button onClick={() => setLocation("/dashboard/domains")}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors">
             ← Back to Search
           </button>
@@ -329,7 +329,7 @@ export default function DomainCartCheckout() {
               <ShoppingCart size={15} className="text-primary" />
               <h2 className="font-semibold text-foreground text-sm">Your Order ({items.length} domain{items.length > 1 ? "s" : ""})</h2>
             </div>
-            <button onClick={() => setLocation("/client/domain-search")}
+            <button onClick={() => setLocation("/dashboard/domain-search")}
               className="text-xs text-primary hover:underline flex items-center gap-1">
               <RefreshCw size={11} /> Edit Cart
             </button>

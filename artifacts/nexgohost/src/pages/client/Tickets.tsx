@@ -856,7 +856,7 @@ export default function ClientTickets() {
       ) : stage === null && (
         <div className="grid gap-3">
           {tickets.map(ticket => (
-            <div key={ticket.id} onClick={() => setLocation(`/client/tickets/${ticket.id}`)}
+            <div key={ticket.id} onClick={() => setLocation(`/dashboard/tickets/${ticket.id}`)}
               className="bg-card border border-border/50 hover:border-primary/30 rounded-2xl p-5 shadow-sm hover:shadow-lg transition-all duration-200 cursor-pointer group">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-start gap-3">

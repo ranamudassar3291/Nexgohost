@@ -116,7 +116,7 @@ export default function ClientHosting() {
 
   const { data: services = [], isLoading } = useQuery<HostingService[]>({
     queryKey: ["client-hosting"],
-    queryFn: () => apiFetch("/api/client/hosting"),
+    queryFn: () => apiFetch("/api/dashboard/hosting"),
   });
 
   const { data: allPlans = [] } = useQuery<HostingPlan[]>({
@@ -130,7 +130,7 @@ export default function ClientHosting() {
   async function handleQuickLogin(serviceId: string, type: "cpanel" | "webmail") {
     setSsoLoading(p => ({ ...p, [serviceId]: type }));
     try {
-      const data = await apiFetch(`/api/client/hosting/${serviceId}/sso-launch`, {
+      const data = await apiFetch(`/api/dashboard/hosting/${serviceId}/sso-launch`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ target: type === "webmail" ? "webmail" : "cpanel" }),
@@ -256,7 +256,7 @@ export default function ClientHosting() {
               </span>
               {(renewingSoon || isExpired) && (
                 <button
-                  onClick={() => setLocation(isVps ? `/client/vps/${service.id}` : `/client/hosting/${service.id}`)}
+                  onClick={() => setLocation(isVps ? `/dashboard/vps/${service.id}` : `/dashboard/hosting/${service.id}`)}
                   className="ml-auto font-bold underline underline-offset-2 shrink-0 hover:no-underline"
                 >
                   Renew →
@@ -277,7 +277,7 @@ export default function ClientHosting() {
           <div className="flex flex-wrap gap-2">
             {service.canManage ? (
               <button
-                onClick={() => setLocation(isVps ? `/client/vps/${service.id}` : `/client/hosting/${service.id}`)}
+                onClick={() => setLocation(isVps ? `/dashboard/vps/${service.id}` : `/dashboard/hosting/${service.id}`)}
                 className="flex items-center gap-1.5 h-9 px-4 rounded-xl text-sm font-semibold text-white shadow-md transition-opacity hover:opacity-90"
                 style={{ background: BRAND_GRADIENT }}
               >
@@ -340,7 +340,7 @@ export default function ClientHosting() {
         </div>
         {services.length > 0 && (
           <button
-            onClick={() => setLocation("/client/orders/new")}
+            onClick={() => setLocation("/dashboard/orders/new")}
             className="flex items-center gap-2 h-9 px-4 rounded-xl text-sm font-semibold text-white shadow-md hover:opacity-90 transition-opacity shrink-0"
             style={{ background: BRAND_GRADIENT }}
           >
@@ -376,7 +376,7 @@ export default function ClientHosting() {
               You don't have any active plans yet. Pick one below and be live in minutes — no technical experience required.
             </p>
             <button
-              onClick={() => setLocation("/client/orders/new")}
+              onClick={() => setLocation("/dashboard/orders/new")}
               className="mt-6 flex items-center gap-2 h-11 px-6 rounded-xl text-sm font-bold text-white shadow-lg hover:opacity-90 transition-opacity"
               style={{ background: BRAND_GRADIENT }}
             >
@@ -428,7 +428,7 @@ export default function ClientHosting() {
                       ))}
                     </div>
                     <button
-                      onClick={() => setLocation(`/client/orders/new?plan=${plan.id}`)}
+                      onClick={() => setLocation(`/dashboard/orders/new?plan=${plan.id}`)}
                       className="mt-auto w-full h-9 rounded-xl text-sm font-semibold transition-all"
                       style={i === 1
                         ? { background: BRAND_GRADIENT, color: "white" }

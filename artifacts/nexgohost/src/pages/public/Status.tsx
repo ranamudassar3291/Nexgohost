@@ -156,7 +156,7 @@ export default function StatusPage() {
         <div className="border-t border-border/40 pt-6 text-center">
           <p className="text-xs text-muted-foreground">
             Status is checked every 60 seconds. For support, visit{" "}
-            <a href="/client/tickets" className="text-primary hover:underline">our support portal</a>.
+            <a href="/dashboard/tickets" className="text-primary hover:underline">our support portal</a>.
           </p>
         </div>
       </div>

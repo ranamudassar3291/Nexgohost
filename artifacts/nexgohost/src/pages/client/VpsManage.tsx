@@ -179,7 +179,7 @@ export default function VpsManage() {
         <AlertCircle size={48} className="text-red-400 mx-auto mb-4"/>
         <h2 className="text-xl font-bold text-gray-900 mb-2">VPS Not Found</h2>
         <p className="text-gray-500 mb-6">This VPS service could not be found or you don't have access.</p>
-        <button onClick={() => setLocation("/client/hosting")}
+        <button onClick={() => setLocation("/dashboard/hosting")}
           className="px-6 py-3 rounded-xl font-bold text-white text-sm"
           style={{ background: P }}>
           Back to Services
@@ -203,7 +203,7 @@ export default function VpsManage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           {/* Breadcrumb */}
           <div className="flex items-center gap-1.5 pt-4 pb-1 text-[12px] text-gray-400">
-            <button onClick={() => setLocation("/client/hosting")} className="hover:text-gray-600 flex items-center gap-1">
+            <button onClick={() => setLocation("/dashboard/hosting")} className="hover:text-gray-600 flex items-center gap-1">
               <ArrowLeft size={12}/> Services
             </button>
             <ChevronRight size={10}/>
@@ -613,7 +613,7 @@ export default function VpsManage() {
                 title: "Cancel Service",
                 desc: "Cancel this VPS plan at the end of your billing period. All data will be lost.",
                 icon: XCircle, danger: true,
-                action: () => setLocation(`/client/hosting/${id}`),
+                action: () => setLocation(`/dashboard/hosting/${id}`),
                 label: "Request Cancellation",
               },
             ].map(({ title, desc, icon: Icon, danger, action, label }) => (

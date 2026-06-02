@@ -98,7 +98,7 @@ export default function RegisterDomain() {
 
   const { data: info, isLoading: infoLoading, error: infoError } = useQuery<FreeDomainInfo>({
     queryKey: ["free-domain-info", claimToken],
-    queryFn: () => apiFetch(`/api/client/hosting/${claimToken}/free-domain-info`),
+    queryFn: () => apiFetch(`/api/dashboard/hosting/${claimToken}/free-domain-info`),
     enabled: !!claimToken,
     retry: false,
   });
@@ -141,7 +141,7 @@ export default function RegisterDomain() {
     if (!claimToken) return;
     setClaiming(domain);
     try {
-      await apiFetch(`/api/client/hosting/${claimToken}/claim-free-domain`, {
+      await apiFetch(`/api/dashboard/hosting/${claimToken}/claim-free-domain`, {
         method: "POST",
         body: JSON.stringify({ domain }),
       });
@@ -206,7 +206,7 @@ export default function RegisterDomain() {
               </p>
             </div>
             <div className="flex gap-3 flex-wrap justify-center">
-              <Button onClick={() => navigate("/client/domains")}
+              <Button onClick={() => navigate("/dashboard/domains")}
                 className="gap-2 text-white" style={{ background: BRAND, border: "none" }}>
                 <Globe size={14} /> Manage Domains
               </Button>

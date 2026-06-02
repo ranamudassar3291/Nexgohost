@@ -453,7 +453,7 @@ export default function HelpCenterArticle() {
         }));
       }
     } catch {}
-    navigate("/client/tickets");
+    navigate("/dashboard/tickets");
   };
 
   const copyLink = () => {

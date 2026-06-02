@@ -207,7 +207,7 @@ export default function VpsHosting() {
                 const saveAmt       = plan.saveAmount ?? (yearlyPrice != null ? Math.max(0, monthlyPrice * 12 - yearlyPrice) : null);
                 const savePct       = yearlyPrice && monthlyPrice ? Math.round((1 - yearlyPrice / (monthlyPrice * 12)) * 100) : 0;
                 const isPopular     = i === midIdx && plans.length > 1;
-                const orderHref     = `/client/orders/new?vps_id=${plan.id}`;
+                const orderHref     = `/dashboard/orders/new?vps_id=${plan.id}`;
 
                 return (
                   <motion.div key={plan.id} {...fade} transition={{ duration: 0.3, delay: i * 0.06 }}

@@ -116,7 +116,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`${BASE}/api/client/cart`, { headers: authHeaders() });
+        const res = await fetch(`${BASE}/api/dashboard/cart`, { headers: authHeaders() });
         if (!res.ok) { setSynced(true); return; }
         const rows = await res.json();
         if (cancelled) return;
@@ -130,7 +130,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           const local = loadLocalCart();
           if (local.length > 0) {
             for (const item of local) {
-              await fetch(`${BASE}/api/client/cart`, {
+              await fetch(`${BASE}/api/dashboard/cart`, {
                 method: "POST",
                 headers: authHeaders(),
                 body: JSON.stringify(item),
@@ -150,7 +150,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
             }).catch(() => {});
             localStorage.removeItem(GUEST_TOKEN_KEY);
             // Reload merged cart from DB
-            const merged = await fetch(`${BASE}/api/client/cart`, { headers: authHeaders() }).catch(() => null);
+            const merged = await fetch(`${BASE}/api/dashboard/cart`, { headers: authHeaders() }).catch(() => null);
             if (merged?.ok) {
               const mergedRows = await merged.json();
               if (!cancelled && Array.isArray(mergedRows) && mergedRows.length > 0) {
@@ -191,7 +191,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     });
 
     if (isLoggedIn()) {
-      fetch(`${BASE}/api/client/cart`, {
+      fetch(`${BASE}/api/dashboard/cart`, {
         method: "POST",
         headers: authHeaders(),
         body: JSON.stringify(item),
@@ -214,7 +214,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems(prev => prev.filter(i => i.planId !== planId));
 
     if (isLoggedIn()) {
-      fetch(`${BASE}/api/client/cart/${encodeURIComponent(planId)}`, {
+      fetch(`${BASE}/api/dashboard/cart/${encodeURIComponent(planId)}`, {
         method: "DELETE",
         headers: authHeaders(),
       }).catch(() => {});
@@ -233,7 +233,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems(prev => prev.map(i => i.planId === planId ? { ...i, billingCycle: cycle } : i));
 
     if (isLoggedIn()) {
-      fetch(`${BASE}/api/client/cart/${encodeURIComponent(planId)}`, {
+      fetch(`${BASE}/api/dashboard/cart/${encodeURIComponent(planId)}`, {
         method: "PATCH",
         headers: authHeaders(),
         body: JSON.stringify({ billingCycle: cycle }),
@@ -246,7 +246,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems([]);
 
     if (isLoggedIn()) {
-      fetch(`${BASE}/api/client/cart`, {
+      fetch(`${BASE}/api/dashboard/cart`, {
         method: "DELETE",
         headers: authHeaders(),
       }).catch(() => {});
@@ -268,7 +268,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       });
       localStorage.removeItem(GUEST_TOKEN_KEY);
       // Reload cart from DB
-      const res = await fetch(`${BASE}/api/client/cart`, { headers: authHeaders() });
+      const res = await fetch(`${BASE}/api/dashboard/cart`, { headers: authHeaders() });
       if (res.ok) {
         const rows = await res.json();
         if (Array.isArray(rows)) {

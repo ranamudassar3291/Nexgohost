@@ -52,7 +52,7 @@ export default function ClientOrders() {
           <h2 className="text-3xl font-display font-bold text-foreground">My Orders</h2>
           <p className="text-muted-foreground mt-1">Track your hosting orders and their status.</p>
         </div>
-        <Button onClick={() => setLocation("/client/orders/new")} className="bg-primary hover:bg-primary/90 gap-2">
+        <Button onClick={() => setLocation("/dashboard/orders/new")} className="bg-primary hover:bg-primary/90 gap-2">
           <Plus size={16} /> New Order
         </Button>
       </div>
@@ -83,7 +83,7 @@ export default function ClientOrders() {
             </div>
             <h3 className="text-lg font-semibold text-foreground">No orders yet</h3>
             <p className="text-muted-foreground text-sm mt-1 mb-5">Browse our hosting packages to get started.</p>
-            <Button onClick={() => setLocation("/client/orders/new")} className="bg-primary hover:bg-primary/90 gap-2">
+            <Button onClick={() => setLocation("/dashboard/orders/new")} className="bg-primary hover:bg-primary/90 gap-2">
               <Plus size={15} /> Place First Order
             </Button>
           </div>
@@ -125,7 +125,7 @@ export default function ClientOrders() {
                       <td className="p-4 text-right">
                         {order.status === "approved" && (
                           <Button variant="outline" size="sm" className="h-7 px-2.5 gap-1.5"
-                            onClick={() => setLocation("/client/hosting")}>
+                            onClick={() => setLocation("/dashboard/hosting")}>
                             <ExternalLink size={12} /> View Service
                           </Button>
                         )}

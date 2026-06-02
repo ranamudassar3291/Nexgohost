@@ -60,10 +60,10 @@ const CartSidebar: React.FC = () => {
     if (!token) {
       closeCart();
       const returnPath = transferItems.length > 0
-        ? '/client/domains/transfer'
+        ? '/dashboard/domains/transfer'
         : items.some(i => i.type === 'domain')
-          ? '/client/domain-search'
-          : '/client/orders/new';
+          ? '/dashboard/domain-search'
+          : '/dashboard/orders/new';
       navigate(`/login?redirect=${encodeURIComponent(returnPath)}`);
       return;
     }
@@ -104,9 +104,9 @@ const CartSidebar: React.FC = () => {
     const hostingItems = otherItems.filter(i => i.type !== 'domain');
 
     if (domainOnlyItems.length > 0 && hostingItems.length === 0) {
-      navigate('/client/domain-search');
+      navigate('/dashboard/domain-search');
     } else {
-      navigate('/client/orders/new');
+      navigate('/dashboard/orders/new');
     }
   };
 

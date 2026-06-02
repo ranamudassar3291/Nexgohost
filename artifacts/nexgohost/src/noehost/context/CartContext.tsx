@@ -102,13 +102,13 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!token) return;
     setLoading(true);
     try {
-      const backendItems: any[] = await apiFetch('GET', '/api/client/cart') || [];
+      const backendItems: any[] = await apiFetch('GET', '/api/dashboard/cart') || [];
       const local = fromLocalStorage();
 
       for (const localItem of local) {
         const alreadyInBackend = backendItems.some(b => String(b.planId) === localItem.planId);
         if (!alreadyInBackend) {
-          await apiFetch('POST', '/api/client/cart', {
+          await apiFetch('POST', '/api/dashboard/cart', {
             planId: localItem.planId,
             planName: localItem.name,
             itemType: localItem.type,
@@ -123,7 +123,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
-      const refreshed: any[] = await apiFetch('GET', '/api/client/cart') || [];
+      const refreshed: any[] = await apiFetch('GET', '/api/dashboard/cart') || [];
       const mapped = refreshed.map((b, i) => mapBackendItem(b, i));
       setItems(mapped);
       toLocalStorage(mapped);
@@ -152,7 +152,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const token = getToken();
     if (token) {
-      await apiFetch('POST', '/api/client/cart', {
+      await apiFetch('POST', '/api/dashboard/cart', {
         planId: item.planId,
         planName: item.name,
         itemType: item.type,
@@ -171,7 +171,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const item = items.find(i => i.id === id);
     setItems(prev => prev.filter(i => i.id !== id));
     if (item && getToken()) {
-      await apiFetch('DELETE', `/api/client/cart/${encodeURIComponent(item.planId)}`);
+      await apiFetch('DELETE', `/api/dashboard/cart/${encodeURIComponent(item.planId)}`);
     }
   }, [items]);
 
@@ -179,7 +179,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const item = items.find(i => i.id === id);
     setItems(prev => prev.map(i => i.id === id ? { ...i, billingCycle: cycle } : i));
     if (item && getToken()) {
-      await apiFetch('PATCH', `/api/client/cart/${encodeURIComponent(item.planId)}`, { billingCycle: cycle });
+      await apiFetch('PATCH', `/api/dashboard/cart/${encodeURIComponent(item.planId)}`, { billingCycle: cycle });
     }
   }, [items]);
 
@@ -187,7 +187,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setItems([]);
     toLocalStorage([]);
     if (getToken()) {
-      await apiFetch('DELETE', '/api/client/cart');
+      await apiFetch('DELETE', '/api/dashboard/cart');
     }
   }, []);
 

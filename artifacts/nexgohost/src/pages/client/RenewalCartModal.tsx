@@ -85,7 +85,7 @@ export function RenewalCartModal({ item, onClose, onSuccess }: RenewalCartModalP
       const endpoint =
         item.type === "domain"
           ? `/api/domains/${item.id}/renew`
-          : `/api/client/hosting/${item.id}/renew`;
+          : `/api/dashboard/hosting/${item.id}/renew`;
 
       const body: Record<string, unknown> = {};
       if (promoData) body.promoCode = promoData.code;

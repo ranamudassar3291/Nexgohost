@@ -29,7 +29,7 @@ const TEMPLATES = [
   </td></tr>
 </table>
 <p style="text-align:center;margin:24px 0">
-  <a href="https://noehost.com/client/hosting" style="display:inline-block;background:linear-gradient(135deg,#6B46C1,#7C5DE2);color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:700">Claim Your Discount →</a>
+  <a href="https://noehost.com/dashboard/hosting" style="display:inline-block;background:linear-gradient(135deg,#6B46C1,#7C5DE2);color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:700">Claim Your Discount →</a>
 </p>
 <p style="font-size:13px;color:#666">This offer expires soon. Don't miss out!</p>`,
   },
@@ -81,7 +81,7 @@ const TEMPLATES = [
 <p>[Write your announcement content here. Be clear and concise.]</p>
 <p>If you have any questions or need assistance, our support team is always ready to help.</p>
 <p style="text-align:center;margin:24px 0">
-  <a href="https://noehost.com/client/tickets/new" style="display:inline-block;background:linear-gradient(135deg,#6B46C1,#7C5DE2);color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:15px;font-weight:700">Contact Support →</a>
+  <a href="https://noehost.com/dashboard/tickets/new" style="display:inline-block;background:linear-gradient(135deg,#6B46C1,#7C5DE2);color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:15px;font-weight:700">Contact Support →</a>
 </p>`,
   },
   {
@@ -99,7 +99,7 @@ const TEMPLATES = [
 <p>[Describe the security notice or action required here.]</p>
 <p>If you did not initiate any of these actions, please contact us immediately via WhatsApp or open a support ticket.</p>
 <p style="text-align:center;margin:24px 0">
-  <a href="https://noehost.com/client/tickets/new" style="display:inline-block;background:#DC2626;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:15px;font-weight:700">Report This Now →</a>
+  <a href="https://noehost.com/dashboard/tickets/new" style="display:inline-block;background:#DC2626;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:15px;font-weight:700">Report This Now →</a>
 </p>`,
   },
   {

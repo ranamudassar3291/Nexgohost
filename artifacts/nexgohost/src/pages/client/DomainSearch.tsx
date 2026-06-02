@@ -225,11 +225,11 @@ export default function DomainSearch() {
   function goTransfer(domain: string) {
     const token = localStorage.getItem("token") || localStorage.getItem("noehost_token");
     if (!token) {
-      const returnPath = `/client/domains/transfer?domain=${encodeURIComponent(domain)}`;
+      const returnPath = `/dashboard/domains/transfer?domain=${encodeURIComponent(domain)}`;
       setLocation(`/login?redirect=${encodeURIComponent(returnPath)}`);
       return;
     }
-    setLocation(`/client/domains/transfer?domain=${encodeURIComponent(domain)}`);
+    setLocation(`/dashboard/domains/transfer?domain=${encodeURIComponent(domain)}`);
   }
 
   function copyWhois() {
@@ -666,7 +666,7 @@ export default function DomainSearch() {
                   <div>
                     <p className="text-sm font-semibold">Complete your website</p>
                     <p className="text-xs opacity-85 mt-0.5">Add Premium Hosting for <strong>60% OFF</strong> with your domain.</p>
-                    <button onClick={() => { setCartOpen(false); setLocation("/client/hosting"); }}
+                    <button onClick={() => { setCartOpen(false); setLocation("/dashboard/hosting"); }}
                       className="mt-2 text-xs font-semibold flex items-center gap-1 opacity-90 hover:opacity-100">
                       Add Hosting <ChevronRight size={12} />
                     </button>

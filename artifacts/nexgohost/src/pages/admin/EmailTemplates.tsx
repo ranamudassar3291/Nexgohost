@@ -51,7 +51,7 @@ const SAMPLES: Record<string, string> = {
   cancel_date: "Jan 31, 2025",
   logo_url: "/uploads/branding/logo.png",
   website_url: "https://noehost.com",
-  support_url: "https://noehost.com/client/tickets/new",
+  support_url: "https://noehost.com/dashboard/tickets/new",
   footer_address: "Noehost, Pakistan",
 };
 

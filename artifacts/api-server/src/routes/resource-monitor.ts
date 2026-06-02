@@ -2,11 +2,11 @@
  * Resource Monitor & Security Guard — client hosting routes
  *
  * Endpoints:
- *   GET  /client/hosting/:id/resource-monitor         — live stats (Disk I/O, Entry Processes, Inodes, CPU)
- *   POST /client/hosting/:id/fix-permissions          — reset file/folder permissions (755/644)
- *   GET  /client/hosting/:id/cache-settings           — fetch cache settings
- *   POST /client/hosting/:id/cache-settings           — toggle Edge/Object cache
- *   GET  /client/hosting/:id/scan-history             — security scan logs
+ *   GET  /dashboard/hosting/:id/resource-monitor         — live stats (Disk I/O, Entry Processes, Inodes, CPU)
+ *   POST /dashboard/hosting/:id/fix-permissions          — reset file/folder permissions (755/644)
+ *   GET  /dashboard/hosting/:id/cache-settings           — fetch cache settings
+ *   POST /dashboard/hosting/:id/cache-settings           — toggle Edge/Object cache
+ *   GET  /dashboard/hosting/:id/scan-history             — security scan logs
  */
 
 import { Router } from "express";
@@ -57,8 +57,8 @@ async function saveResourceSnapshot(serviceId: string, data: Record<string, any>
   } catch { /* non-fatal */ }
 }
 
-// ─── GET /client/hosting/:id/resource-monitor ─────────────────────────────────
-router.get("/client/hosting/:id/resource-monitor", authenticate, async (req: AuthRequest, res) => {
+// ─── GET /dashboard/hosting/:id/resource-monitor ─────────────────────────────────
+router.get("/dashboard/hosting/:id/resource-monitor", authenticate, async (req: AuthRequest, res) => {
   try {
     const ctx = await getServiceAndServer(req.params.id, req.user!.id);
     if (!ctx) return res.status(404).json({ error: "Service not found" });
@@ -169,8 +169,8 @@ router.get("/client/hosting/:id/resource-monitor", authenticate, async (req: Aut
   }
 });
 
-// ─── POST /client/hosting/:id/fix-permissions ─────────────────────────────────
-router.post("/client/hosting/:id/fix-permissions", authenticate, async (req: AuthRequest, res) => {
+// ─── POST /dashboard/hosting/:id/fix-permissions ─────────────────────────────────
+router.post("/dashboard/hosting/:id/fix-permissions", authenticate, async (req: AuthRequest, res) => {
   try {
     const ctx = await getServiceAndServer(req.params.id, req.user!.id);
     if (!ctx) return res.status(404).json({ error: "Service not found" });
@@ -236,8 +236,8 @@ router.post("/client/hosting/:id/fix-permissions", authenticate, async (req: Aut
   }
 });
 
-// ─── GET /client/hosting/:id/scan-history ─────────────────────────────────────
-router.get("/client/hosting/:id/scan-history", authenticate, async (req: AuthRequest, res) => {
+// ─── GET /dashboard/hosting/:id/scan-history ─────────────────────────────────────
+router.get("/dashboard/hosting/:id/scan-history", authenticate, async (req: AuthRequest, res) => {
   try {
     const ctx = await getServiceAndServer(req.params.id, req.user!.id);
     if (!ctx) return res.status(404).json({ error: "Service not found" });
@@ -255,8 +255,8 @@ router.get("/client/hosting/:id/scan-history", authenticate, async (req: AuthReq
   }
 });
 
-// ─── GET /client/hosting/:id/cache-settings ───────────────────────────────────
-router.get("/client/hosting/:id/cache-settings", authenticate, async (req: AuthRequest, res) => {
+// ─── GET /dashboard/hosting/:id/cache-settings ───────────────────────────────────
+router.get("/dashboard/hosting/:id/cache-settings", authenticate, async (req: AuthRequest, res) => {
   try {
     const ctx = await getServiceAndServer(req.params.id, req.user!.id);
     if (!ctx) return res.status(404).json({ error: "Service not found" });
@@ -274,8 +274,8 @@ router.get("/client/hosting/:id/cache-settings", authenticate, async (req: AuthR
   }
 });
 
-// ─── POST /client/hosting/:id/cache-settings ──────────────────────────────────
-router.post("/client/hosting/:id/cache-settings", authenticate, async (req: AuthRequest, res) => {
+// ─── POST /dashboard/hosting/:id/cache-settings ──────────────────────────────────
+router.post("/dashboard/hosting/:id/cache-settings", authenticate, async (req: AuthRequest, res) => {
   try {
     const ctx = await getServiceAndServer(req.params.id, req.user!.id);
     if (!ctx) return res.status(404).json({ error: "Service not found" });

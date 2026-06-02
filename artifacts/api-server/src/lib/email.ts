@@ -302,7 +302,7 @@ async function getBrandingVars(): Promise<BrandingVars> {
     return {
       logo_url: "", company_name: "Noehost", brand_color: "#701AFE",
       website_url: "", whatsapp_number: "923151711821",
-      support_url: "/client/tickets/new", footer_address: "",
+      support_url: "/dashboard/tickets/new", footer_address: "",
       support_email: "", social_twitter: "", social_facebook: "", social_linkedin: "",
     };
   }

@@ -289,7 +289,7 @@ export default function Register() {
       toast({ title: "Email verified!", description: "Welcome to Noehost." });
       const nextUrl = new URLSearchParams(window.location.search).get("next") || new URLSearchParams(window.location.search).get("redirect");
       const hasPendingCart = (() => { try { return JSON.parse(localStorage.getItem("noehost_website_cart") || "[]").length > 0; } catch { return false; } })();
-      setLocation(nextUrl || (hasPendingCart ? "/client/orders/new" : "/dashboard"));
+      setLocation(nextUrl || (hasPendingCart ? "/dashboard/orders/new" : "/dashboard"));
     } catch (err: any) {
       toast({ title: "Verification failed", description: err.message, variant: "destructive" });
     } finally { setLoading(false); }

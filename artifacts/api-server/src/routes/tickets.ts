@@ -215,7 +215,7 @@ router.post("/tickets/:id/reply", authenticate, async (req: AuthRequest, res) =>
     // Notify the other party about the reply
     if (user.role === "admin") {
       // Admin replied — notify client
-      createNotification(ticket.clientId, "ticket", "Support Reply", `Admin replied to your ticket: "${ticket.subject}"`, `/client/tickets/${ticket.id}`).catch(() => {});
+      createNotification(ticket.clientId, "ticket", "Support Reply", `Admin replied to your ticket: "${ticket.subject}"`, `/dashboard/tickets/${ticket.id}`).catch(() => {});
     }
 
     res.status(201).json(formatMessage(msg));

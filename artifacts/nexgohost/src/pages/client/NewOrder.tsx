@@ -1,5 +1,5 @@
 /**
- * /client/orders/new  —  4-step Distraction-Free Checkout Wizard
+ * /dashboard/orders/new  —  4-step Distraction-Free Checkout Wizard
  *
  * Step 1 (Service) → Step 2 (Plan & Billing) → Step 3 (Domain Setup) → Step 4 (Review & Pay)
  *
@@ -1232,7 +1232,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
         } catch { /* fall through to invoice page if initiate fails */ }
       }
 
-      setLocation(`/client/invoices/${invoiceId}`);
+      setLocation(`/dashboard/invoices/${invoiceId}`);
     },
     onError: (err: Error) => {
       setOrderError(err.message);
@@ -3304,7 +3304,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
         <AlertCircle size={40} className="text-red-400"/>
         <p className="text-[16px] font-semibold text-gray-800">Package not found</p>
         <p className="text-[13px] text-gray-500 max-w-xs">{directLinkError}</p>
-        <button onClick={() => setLocation("/client/orders/new")}
+        <button onClick={() => setLocation("/dashboard/orders/new")}
           className="mt-2 px-6 py-2.5 rounded-xl text-[13px] font-bold text-white"
           style={{ background: P }}>
           Browse all plans

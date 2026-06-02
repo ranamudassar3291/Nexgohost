@@ -80,7 +80,7 @@ export default function ClientDomainDns() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <button onClick={() => navigate("/client/domains")} className="p-2 rounded-xl hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors">
+        <button onClick={() => navigate("/dashboard/domains")} className="p-2 rounded-xl hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft size={18} />
         </button>
         <div className="flex items-center gap-2">

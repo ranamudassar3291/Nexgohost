@@ -144,7 +144,7 @@ const WhoisModal: React.FC<{ domain: string; onClose: () => void }> = ({ domain,
                   {data.registrar && <div className="p-3 rounded-xl bg-slate-50"><div className="flex items-center gap-1.5 mb-1"><Building2 size={12} className="text-purple-600" /><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Registrar</span></div><p className="text-sm font-semibold text-slate-800">{data.registrar}</p></div>}
                   {data.nameservers.length > 0 && <div className="p-3 rounded-xl bg-slate-50"><div className="flex items-center gap-1.5 mb-2"><Server size={12} className="text-purple-600" /><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nameservers</span></div><div className="space-y-1">{data.nameservers.slice(0, 4).map((ns, i) => <p key={i} className="text-xs font-mono text-slate-600 bg-white rounded-lg px-2 py-1 border border-slate-200">{ns}</p>)}</div></div>}
                   {data.status.length > 0 && <div className="p-3 rounded-xl bg-slate-50"><div className="flex items-center gap-1.5 mb-2"><Info size={12} className="text-purple-600" /><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status Flags</span></div><div className="flex flex-wrap gap-1">{data.status.slice(0, 5).map((s, i) => <span key={i} className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">{s}</span>)}</div></div>}
-                  <button onClick={() => window.location.href = `/client/domains/transfer?domain=${encodeURIComponent(domain)}`} className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-black text-sm rounded-xl transition-all flex items-center justify-center gap-2"><RefreshCw size={14} /> Transfer This Domain to Noehost</button>
+                  <button onClick={() => window.location.href = `/dashboard/domains/transfer?domain=${encodeURIComponent(domain)}`} className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-black text-sm rounded-xl transition-all flex items-center justify-center gap-2"><RefreshCw size={14} /> Transfer This Domain to Noehost</button>
                 </>
               )}
             </div>
@@ -555,7 +555,7 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
                         </div>
                         <div className="flex gap-2">
                           <button onClick={() => setWhoisDomain(`${searched}${taken[0].tld}`)} className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-purple-100 hover:text-purple-700 text-slate-600 font-black text-sm rounded-xl transition-all"><Info size={14} /> WHOIS</button>
-                          <button onClick={() => window.location.href = `/client/domains/transfer?domain=${encodeURIComponent(`${searched}${taken[0].tld}`)}`} className="flex items-center gap-1.5 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white font-black text-sm rounded-xl transition-all"><RefreshCw size={14} /> Transfer</button>
+                          <button onClick={() => window.location.href = `/dashboard/domains/transfer?domain=${encodeURIComponent(`${searched}${taken[0].tld}`)}`} className="flex items-center gap-1.5 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white font-black text-sm rounded-xl transition-all"><RefreshCw size={14} /> Transfer</button>
                         </div>
                       </div>
                     </div>
@@ -608,7 +608,7 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
                                 ) : (
                                   <div className="flex gap-1.5">
                                     <button onClick={() => setWhoisDomain(domainFull)} className="flex items-center gap-1 px-2.5 py-2 rounded-xl font-black text-xs bg-slate-100 hover:bg-purple-100 hover:text-purple-700 text-slate-500 transition-all"><Info size={11} />WHOIS</button>
-                                    <button onClick={() => window.location.href = `/client/domains/transfer?domain=${encodeURIComponent(domainFull)}`} className="flex items-center gap-1 px-2.5 py-2 rounded-xl font-black text-xs bg-slate-100 hover:bg-orange-100 hover:text-orange-600 text-slate-500 transition-all"><RefreshCw size={11} />Transfer</button>
+                                    <button onClick={() => window.location.href = `/dashboard/domains/transfer?domain=${encodeURIComponent(domainFull)}`} className="flex items-center gap-1 px-2.5 py-2 rounded-xl font-black text-xs bg-slate-100 hover:bg-orange-100 hover:text-orange-600 text-slate-500 transition-all"><RefreshCw size={11} />Transfer</button>
                                   </div>
                                 )}
                               </div>
@@ -698,7 +698,7 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
                               </button>
                             )}
                             {r.available === false && !r.checking && (
-                              <button onClick={() => window.location.href = `/client/domains/transfer?domain=${encodeURIComponent(r.domain)}`} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl font-black text-xs bg-slate-100 hover:bg-orange-100 hover:text-orange-600 text-slate-500 transition-all"><RefreshCw size={11} />Transfer</button>
+                              <button onClick={() => window.location.href = `/dashboard/domains/transfer?domain=${encodeURIComponent(r.domain)}`} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl font-black text-xs bg-slate-100 hover:bg-orange-100 hover:text-orange-600 text-slate-500 transition-all"><RefreshCw size={11} />Transfer</button>
                             )}
                           </div>
                         </div>
@@ -807,7 +807,7 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
                         <div className="text-sm font-black text-green-700">All {transferResults.length} transfers initiated!</div>
                         <div className="text-xs text-green-600 font-medium">Check your email for confirmation. Transfers take 5–7 days.</div>
                       </div>
-                      <button onClick={() => window.location.href = '/client/domains'} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl font-black text-xs hover:bg-green-700 transition-all">
+                      <button onClick={() => window.location.href = '/dashboard/domains'} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl font-black text-xs hover:bg-green-700 transition-all">
                         <ArrowRightLeft size={13} />View Transfers
                       </button>
                     </div>

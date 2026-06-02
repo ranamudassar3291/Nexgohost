@@ -239,7 +239,7 @@ export default function DomainReseller() {
                 <ArrowRight size={17} />
               </button>
               {user && (
-                <Link to="/client/reseller" className="inline-flex items-center gap-3 px-8 py-4 bg-gray-50 border border-gray-200 text-gray-700 rounded-2xl font-bold text-sm hover:bg-gray-100 transition-all">
+                <Link to="/dashboard/reseller" className="inline-flex items-center gap-3 px-8 py-4 bg-gray-50 border border-gray-200 text-gray-700 rounded-2xl font-bold text-sm hover:bg-gray-100 transition-all">
                   <BarChart3 size={17} /> My Dashboard
                 </Link>
               )}
@@ -486,7 +486,7 @@ export default function DomainReseller() {
                   Apply Now — It's Free <ArrowRight size={17} />
                 </button>
                 {user && (
-                  <Link to="/client/reseller" className="inline-flex items-center justify-center gap-3 px-9 py-4 bg-white/10 border border-white/20 text-white rounded-2xl font-bold text-sm hover:bg-white/15 transition-all">
+                  <Link to="/dashboard/reseller" className="inline-flex items-center justify-center gap-3 px-9 py-4 bg-white/10 border border-white/20 text-white rounded-2xl font-bold text-sm hover:bg-white/15 transition-all">
                     <BarChart3 size={17} /> Go to Dashboard
                   </Link>
                 )}

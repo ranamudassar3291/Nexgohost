@@ -535,9 +535,9 @@ export default function OrderFlow() {
     if (flow === "domain" || (!selectedPlan && cartDomain)) {
       const name = cartDomain?.fullName || "";
       sessionStorage.setItem("domain_search", name);
-      goToCheckout("/client/domains");
+      goToCheckout("/dashboard/domains");
     } else {
-      goToCheckout("/client/cart");
+      goToCheckout("/dashboard/cart");
     }
   }
 
@@ -557,7 +557,7 @@ export default function OrderFlow() {
     setTransferError("");
     sessionStorage.setItem("transfer_domain", transferDomain);
     sessionStorage.setItem("transfer_epp",    eppCode);
-    goToCheckout("/client/domains?tab=transfers");
+    goToCheckout("/dashboard/domains?tab=transfers");
   }
 
   // ── Sidebar visibility ────────────────────────────────────────────────────
@@ -1128,7 +1128,7 @@ export default function OrderFlow() {
                 <p className="text-[12px] text-gray-500 leading-relaxed">{opt.desc}</p>
               </button>
             ))}
-            <button onClick={() => goToCheckout("/client/cart")}
+            <button onClick={() => goToCheckout("/dashboard/cart")}
               className="sm:col-span-2 w-full py-3 rounded-xl border border-dashed border-gray-300 text-[13px] text-gray-400 hover:border-[#6B46C1]/40 hover:text-[#6B46C1] transition-all">
               Skip for now — I'll add a domain later
             </button>
@@ -1184,7 +1184,7 @@ export default function OrderFlow() {
                         <button
                           onClick={() => {
                             setCartDomain({ fullName: `${searchedName}${r.tld}`, price: r.registrationPrice });
-                            goToCheckout("/client/cart");
+                            goToCheckout("/dashboard/cart");
                           }}
                           className="px-3 py-1.5 bg-[#6B46C1] text-white rounded-lg text-[12px] font-bold hover:bg-[#4338CA] transition-all">
                           Add + Checkout
@@ -1231,7 +1231,7 @@ export default function OrderFlow() {
               onClick={() => {
                 if (!existingDomain.includes(".")) { setDomainError("Please enter a valid domain name, e.g. yourdomain.com"); return; }
                 sessionStorage.setItem("hosting_domain", existingDomain);
-                goToCheckout("/client/cart");
+                goToCheckout("/dashboard/cart");
               }}
               className="w-full py-3.5 bg-[#6B46C1] text-white rounded-xl text-[14px] font-bold hover:bg-[#4338CA] shadow-lg shadow-[#6B46C1]/20 transition-all flex items-center justify-center gap-2">
               Continue to Checkout <ChevronRight size={16} />

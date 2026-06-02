@@ -404,7 +404,7 @@ export default function KnowledgeBase() {
                 title: 'Support Tickets',
                 desc: 'Submit a detailed support request and get a full written solution.',
                 cta: 'Open a ticket',
-                href: '/client/tickets',
+                href: '/dashboard/tickets',
                 badge: '< 1hr response',
                 badgeColor: '#0EA5E9',
               },

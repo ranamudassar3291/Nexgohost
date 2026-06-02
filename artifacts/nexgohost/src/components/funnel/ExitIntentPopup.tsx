@@ -34,7 +34,7 @@ export function ExitIntentPopup() {
   const { user }                = useAuth();
   const triggered               = useRef(false);
 
-  const isCheckout = location.startsWith("/client/orders/new") || location.startsWith("/client/checkout") || location.startsWith("/checkout") || location.startsWith("/cart");
+  const isCheckout = location.startsWith("/dashboard/orders/new") || location.startsWith("/dashboard/checkout") || location.startsWith("/checkout") || location.startsWith("/cart");
 
   const trigger = useCallback(() => {
     if (triggered.current || alreadyShown() || !isCheckout) return;

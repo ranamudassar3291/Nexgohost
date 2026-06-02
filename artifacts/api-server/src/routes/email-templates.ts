@@ -64,7 +64,7 @@ function layout(content: string): string {
                   </a>
                 </td>
                 <td>
-                  <a href="{{website_url}}/client/domains"
+                  <a href="{{website_url}}/dashboard/domains"
                      style="display:inline-block;background:#ffffff;color:{{brand_color}};text-decoration:none;padding:10px 20px;border-radius:6px;font-size:13px;font-weight:700;font-family:Inter,'Helvetica Neue',Helvetica,Arial,sans-serif;border:2px solid {{brand_color}}">
                     &#127760; Manage Domains
                   </a>
@@ -343,7 +343,7 @@ ${infoTable("Order Details", [
   { label: "Status", value: `<span style="color:#d97706;font-weight:600">&#8987; Provisioning</span>` },
 ])}
 ${infoBox("<strong style='color:#701AFE'>&#9889; What happens next?</strong><br>Your account is being created automatically. Expect your hosting credentials in the next few minutes. Domain propagation may take 24–48 hours after that.")}
-${btn("Track Order Status", "https://noehost.com/client/orders")}
+${btn("Track Order Status", "https://noehost.com/dashboard/orders")}
 `),
     variables: ["{{client_name}}", "{{service_name}}", "{{domain}}", "{{order_id}}"],
   },
@@ -407,7 +407,7 @@ ${infoTable("Nameservers (Update at Your Domain Registrar)", [
 
 <p style="margin:0 0 4px;color:#555555;font-size:13px">&#9432; DNS propagation can take 24–48 hours. Your website will go live once propagation is complete.</p>
 ${btn("Login to cPanel", "{{cpanel_url}}")}
-${btnOutline("Manage Hosting", "https://noehost.com/client/hosting")}
+${btnOutline("Manage Hosting", "https://noehost.com/dashboard/hosting")}
 `),
     variables: ["{{client_name}}", "{{domain}}", "{{username}}", "{{password}}", "{{cpanel_url}}", "{{ns1}}", "{{ns2}}", "{{webmail_url}}"],
   },
@@ -552,7 +552,7 @@ ${infoTable("Termination Details", [
   { label: "Status", value: `<span style="color:#dc2626;font-weight:700">&#10005; Terminated</span>` },
 ])}
 ${infoBox("<strong style='color:#dc2626'>&#9888; Important:</strong> All associated files, databases, email accounts, and configurations have been permanently deleted and cannot be recovered. If you believe this was done in error, please contact support immediately.")}
-${btn("Contact Support", "https://noehost.com/client/tickets/new")}
+${btn("Contact Support", "https://noehost.com/dashboard/tickets/new")}
 `),
     variables: ["{{client_name}}", "{{domain}}", "{{service_name}}", "{{termination_date}}"],
   },
@@ -854,7 +854,7 @@ ${btnOutline("Go to WP Admin", "{{wp_admin_url}}")}
                   </a>
                 </td>
                 <td>
-                  <a href="https://noehost.com/client/domains"
+                  <a href="https://noehost.com/dashboard/domains"
                      style="display:inline-block;background:#701AFE;color:#ffffff;text-decoration:none;padding:11px 18px;border-radius:6px;font-size:13px;font-weight:700;font-family:Inter,Arial,sans-serif">
                     &#127760; Manage Domains
                   </a>
@@ -870,7 +870,7 @@ ${btnOutline("Go to WP Admin", "{{wp_admin_url}}")}
             <p style="margin:0 0 10px;font-size:12px;color:#4A4A6A">
               <a href="https://noehost.com/kb" style="color:#701AFE;text-decoration:none">Knowledge Base</a>
               <span style="color:#2A2A4A;margin:0 8px">&middot;</span>
-              <a href="https://noehost.com/client/tickets" style="color:#701AFE;text-decoration:none">Support</a>
+              <a href="https://noehost.com/dashboard/tickets" style="color:#701AFE;text-decoration:none">Support</a>
               <span style="color:#2A2A4A;margin:0 8px">&middot;</span>
               <a href="https://noehost.com/unsubscribe" style="color:#4A4A6A;text-decoration:underline">Unsubscribe</a>
             </p>
@@ -1007,12 +1007,12 @@ router.post("/admin/email-templates/:id/test", authenticate, requireAdmin, async
       ticket_subject:    "Help with DNS configuration",
       department:        "Technical Support",
       reply_body:        "Thank you for contacting Noehost Support. We have reviewed your DNS configuration and updated the A records for your domain. Please allow up to 24 hours for full propagation.",
-      ticket_url:        "https://noehost.com/client/tickets/TKT-00149",
+      ticket_url:        "https://noehost.com/dashboard/tickets/TKT-00149",
       client_area_url:   "https://noehost.com/client/invoices",
       reason:            "Overdue invoice (INV-2026-001)",
       cancel_date:       "31 January 2026",
       termination_date:  "31 January 2026",
-      dns_url:           "https://noehost.com/client/domains",
+      dns_url:           "https://noehost.com/dashboard/domains",
       dashboard_url:     "https://noehost.com/dashboard",
       refund_date:       "15 January 2026",
       payment_method:    "JazzCash (****4242)",

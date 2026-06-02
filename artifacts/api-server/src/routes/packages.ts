@@ -68,7 +68,7 @@ router.get("/packages/resolve/:slugOrId", async (req, res) => {
 
     return res.status(404).json({
       error: `No active plan found matching "${raw}"`,
-      redirect: "/client/orders/new",
+      redirect: "/dashboard/orders/new",
     });
   } catch (err) {
     console.error(err);

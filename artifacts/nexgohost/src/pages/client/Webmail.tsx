@@ -24,7 +24,7 @@ export default function Webmail() {
   const { data: service, isLoading } = useQuery<HostingService>({
     queryKey: ["client-hosting-service", id],
     queryFn: async () => {
-      const res = await fetch(`/api/client/hosting/${id}`, {
+      const res = await fetch(`/api/dashboard/hosting/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error("Failed to load hosting service");
@@ -37,7 +37,7 @@ export default function Webmail() {
     setLaunching(true);
     setLaunchError(null);
     try {
-      const res = await fetch(`/api/client/hosting/${id}/email/webmail`, {
+      const res = await fetch(`/api/dashboard/hosting/${id}/email/webmail`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -65,7 +65,7 @@ export default function Webmail() {
     <div className="max-w-xl mx-auto px-4 py-8 space-y-6">
       {/* Back nav */}
       <button
-        onClick={() => setLocation(`/client/hosting/${id}`)}
+        onClick={() => setLocation(`/dashboard/hosting/${id}`)}
         className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
       >
         <ArrowLeft size={15} /> Back to Hosting Panel

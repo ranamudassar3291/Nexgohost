@@ -383,7 +383,7 @@ export default function HelpCenter() {
           <h3 className="font-semibold">{t(lang, "stillNeedHelp")}</h3>
           <p className="text-sm text-muted-foreground">{t(lang, "stillNeedHelpDesc")}</p>
           <button
-            onClick={() => navigate("/client/tickets")}
+            onClick={() => navigate("/dashboard/tickets")}
             className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
           >
             {t(lang, "openTicket")}

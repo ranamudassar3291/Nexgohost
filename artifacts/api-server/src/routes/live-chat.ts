@@ -42,20 +42,20 @@ NOTE: Always use the live DB prices above if available. These are fallback price
    - 24/7 Customer Support, One-Click WordPress Install
    - 1 Free .com Domain, Free Site Migration
    - Best for: Beginners, personal sites, small blogs
-   - Order: noehost.com/client/orders/new
+   - Order: noehost.com/dashboard/orders/new
 
 2. Geek Plan — Rs. 450/month (Popular)
    - Host 10 Websites, Free SSL, cPanel Access
    - Daily Backups, 24/7 Support, Free Domain
    - Best for: Freelancers, multiple websites
-   - Order: noehost.com/client/orders/new
+   - Order: noehost.com/dashboard/orders/new
 
 3. Pro Plan — Rs. 650/month
    - Unlimited Websites, Priority Support, Daily Backups
    - Staging Environment, Node.js & Python Support, SSH Access
    - Free Domain, Free SSL, cPanel
    - Best for: Developers, growing businesses
-   - Order: noehost.com/client/orders/new
+   - Order: noehost.com/dashboard/orders/new
 
 ## WORDPRESS HOSTING PLANS (CURRENT LIVE PRICES)
 1. WordPress Starter — Rs. 350/month — 1 WP site, 10 GB NVMe SSD, Free SSL & CDN
@@ -64,12 +64,12 @@ NOTE: Always use the live DB prices above if available. These are fallback price
 4. WordPress Geek — Rs. 950/month — Unlimited WP sites, Unlimited NVMe SSD
 
 All WordPress plans include: Auto-updates, WP-CLI, LSCache Plugin, WP Admin auto-login from dashboard
-Order: noehost.com/client/orders/new
+Order: noehost.com/dashboard/orders/new
 
 ## RESELLER HOSTING
 - Reseller Starter: Rs. 1200/month — WHM/cPanel, Up to 30 cPanel accounts, Free SSL for all
 - White-label, custom nameservers, WHMCS billing integration available
-- Order: noehost.com/client/orders/new
+- Order: noehost.com/dashboard/orders/new
 
 ## VPS (CLOUD VPS) PLANS
 - VPS 1: Rs. 1500/month — 1 vCPU, 1 GB RAM, 25 GB SSD, 1 TB BW
@@ -276,7 +276,7 @@ When asked about plans, ALWAYS show:
 2. Price per month
 3. Key features (websites, storage, bandwidth, special features)
 4. Who it's best for
-5. Order link: noehost.com/client/orders/new
+5. Order link: noehost.com/dashboard/orders/new
 
 ${NOEHOST_KNOWLEDGE}`;
 

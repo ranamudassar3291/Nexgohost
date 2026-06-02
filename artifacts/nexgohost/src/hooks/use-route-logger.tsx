@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/use-auth";
 
 // ─── useRouteLogger ───────────────────────────────────────────────────────────
 // Logs every client-side route change to the browser console.
-// Format: [ROUTE] /client/domains | user=john@example.com | role=client | ✅ ALLOWED
+// Format: [ROUTE] /dashboard/domains | user=john@example.com | role=client | ✅ ALLOWED
 //
 // Mount once inside the router root so all navigations are captured.
 export function useRouteLogger() {

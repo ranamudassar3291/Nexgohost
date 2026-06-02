@@ -183,7 +183,7 @@ function SubscriptionCard({ svc, onToggleAutoRenew }: { svc: HostingService; onT
 
       {/* Manage link */}
       <button
-        onClick={() => setLocation(`/client/hosting/${svc.id}`)}
+        onClick={() => setLocation(`/dashboard/hosting/${svc.id}`)}
         className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
       >
         Manage Service <ExternalLink size={11} />
@@ -291,12 +291,12 @@ export default function ClientInvoices() {
 
   const { data: services = [] } = useQuery<HostingService[]>({
     queryKey: ["client-hosting-billing"],
-    queryFn: () => apiFetch("/api/client/hosting"),
+    queryFn: () => apiFetch("/api/dashboard/hosting"),
   });
 
   const autoRenewMutation = useMutation({
     mutationFn: ({ id, autoRenew }: { id: string; autoRenew: boolean }) =>
-      apiFetch(`/api/client/hosting/${id}/auto-renew`, { method: "PUT", body: JSON.stringify({ autoRenew }) }),
+      apiFetch(`/api/dashboard/hosting/${id}/auto-renew`, { method: "PUT", body: JSON.stringify({ autoRenew }) }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["client-hosting-billing"] }),
     onError: () => toast({ title: "Failed to update", description: "We couldn't update auto-renewal. Please refresh the page and try again.", variant: "destructive" }),
   });
@@ -479,7 +479,7 @@ export default function ClientInvoices() {
                     const Icon = cfg.icon;
                     const eligible = isRefundEligible(inv);
                     return (
-                      <tr key={inv.id} className="hover:bg-secondary/20 transition-colors cursor-pointer" onClick={() => setLocation(`/client/invoices/${inv.id}`)}>
+                      <tr key={inv.id} className="hover:bg-secondary/20 transition-colors cursor-pointer" onClick={() => setLocation(`/dashboard/invoices/${inv.id}`)}>
                         <td className="px-4 py-3.5">
                           <div className="flex items-center gap-2.5">
                             <div className="w-8 h-8 bg-primary/5 rounded-lg flex items-center justify-center shrink-0">
@@ -504,14 +504,14 @@ export default function ClientInvoices() {
                         </td>
                         <td className="px-4 py-3.5 text-right" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center gap-1.5 justify-end flex-wrap">
-                            <Button size="sm" variant="outline" className="h-7 px-2.5 gap-1 text-xs" onClick={() => setLocation(`/client/invoices/${inv.id}`)}>
+                            <Button size="sm" variant="outline" className="h-7 px-2.5 gap-1 text-xs" onClick={() => setLocation(`/dashboard/invoices/${inv.id}`)}>
                               <Eye size={11} /> View
                             </Button>
-                            <Button size="sm" variant="outline" className="h-7 px-2.5 gap-1 text-xs" onClick={() => setLocation(`/client/invoices/${inv.id}`)}>
+                            <Button size="sm" variant="outline" className="h-7 px-2.5 gap-1 text-xs" onClick={() => setLocation(`/dashboard/invoices/${inv.id}`)}>
                               <Download size={11} /> PDF
                             </Button>
                             {(inv.status === "unpaid" || inv.status === "overdue") && (
-                              <Button size="sm" className="h-7 px-2.5 bg-primary hover:bg-primary/90 gap-1 text-xs" onClick={() => setLocation(`/client/invoices/${inv.id}`)}>
+                              <Button size="sm" className="h-7 px-2.5 bg-primary hover:bg-primary/90 gap-1 text-xs" onClick={() => setLocation(`/dashboard/invoices/${inv.id}`)}>
                                 <CreditCard size={11} /> Pay Now
                               </Button>
                             )}
@@ -581,7 +581,7 @@ export default function ClientInvoices() {
                           <p className="font-mono text-xs text-foreground">{tx.transactionRef || tx.id.slice(0, 12) + "…"}</p>
                           {tx.invoiceId && (
                             <button className="text-[10px] text-primary hover:underline flex items-center gap-0.5"
-                              onClick={() => setLocation(`/client/invoices/${tx.invoiceId}`)}>
+                              onClick={() => setLocation(`/dashboard/invoices/${tx.invoiceId}`)}>
                               View invoice <ChevronRight size={9} />
                             </button>
                           )}

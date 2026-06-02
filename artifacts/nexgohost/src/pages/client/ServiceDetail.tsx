@@ -244,7 +244,7 @@ function MgmtUnavailable({ message, onRetry }: { message: string; onRetry?: () =
               <RefreshCw size={12} /> Retry
             </Button>
           )}
-          <Button size="sm" variant="ghost" onClick={() => window.location.href = "/client/support/new"}
+          <Button size="sm" variant="ghost" onClick={() => window.location.href = "/dashboard/tickets"}
             className="gap-1.5 text-muted-foreground">
             <TicketCheck size={12} /> Contact Support
           </Button>
@@ -262,7 +262,7 @@ function SectionOverview({ service, plan, navigateTo }: { service: Service; plan
   const [usage, setUsage] = useState<any>(null);
 
   useEffect(() => {
-    authFetch(`/client/hosting/${service.id}/usage`)
+    authFetch(`/dashboard/hosting/${service.id}/usage`)
       .then(r => r.ok ? r.json() : null)
       .then(d => d && setUsage(d))
       .catch(() => null);
@@ -357,7 +357,7 @@ function SectionWordPress({ service, refetch }: { service: Service; refetch: () 
   const [domains, setDomains] = useState<string[]>([]);
 
   useEffect(() => {
-    authFetch(`/client/hosting/${service.id}/domains`).then(r => r.ok ? r.json() : null).then(d => {
+    authFetch(`/dashboard/hosting/${service.id}/domains`).then(r => r.ok ? r.json() : null).then(d => {
       if (d?.domains) setDomains([...(d.domains.mainDomain ? [d.domains.mainDomain] : []), ...(d.domains.addons ?? []), ...(d.domains.subdomains ?? [])]);
     }).catch(() => null);
   }, [service.id]);
@@ -365,7 +365,7 @@ function SectionWordPress({ service, refetch }: { service: Service; refetch: () 
   async function handleInstall() {
     setLoading("install");
     try {
-      const res = await authFetch(`/client/hosting/${service.id}/install-wordpress`, {
+      const res = await authFetch(`/dashboard/hosting/${service.id}/install-wordpress`, {
         method: "POST", body: JSON.stringify({ ...installForm }),
       });
       const d = await res.json();
@@ -379,7 +379,7 @@ function SectionWordPress({ service, refetch }: { service: Service; refetch: () 
 
   function pollWpStatus() {
     const iv = setInterval(async () => {
-      const d = await apiFetch(`/client/hosting/${service.id}/wordpress-status`).catch(() => null);
+      const d = await apiFetch(`/dashboard/hosting/${service.id}/wordpress-status`).catch(() => null);
       if (d) {
         setWpStatus({ status: d.status, step: d.step, error: d.error });
         if (["installed", "failed"].includes(d.status)) { clearInterval(iv); refetch(); }
@@ -390,7 +390,7 @@ function SectionWordPress({ service, refetch }: { service: Service; refetch: () 
   async function handleWpAdmin() {
     setLoading("wpadmin");
     try {
-      const d = await apiFetch(`/client/hosting/${service.id}/wp-admin-url`, { method: "POST", body: JSON.stringify({ domain: checkDomain }) });
+      const d = await apiFetch(`/dashboard/hosting/${service.id}/wp-admin-url`, { method: "POST", body: JSON.stringify({ domain: checkDomain }) });
       if (d.url) window.open(d.url, "_blank", "noopener");
       else toast({ title: "WordPress Admin", description: `Visit: https://${checkDomain}/wp-admin`, variant: "default" });
     } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
@@ -403,7 +403,7 @@ function SectionWordPress({ service, refetch }: { service: Service; refetch: () 
   async function openWpDeepLink(target: string) {
     setLoading(`wp-deep-${target}`);
     try {
-      const res = await authFetch(`/client/hosting/${service.id}/wp/sso-deep?target=${target}`);
+      const res = await authFetch(`/dashboard/hosting/${service.id}/wp/sso-deep?target=${target}`);
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "Failed");
       if (d.url) window.open(d.url, "_blank", "noopener");
@@ -588,7 +588,7 @@ function SectionEmail({ service }: { service: Service }) {
     setLoadingList(true);
     setMgmtError(null);
     try {
-      const d = await apiFetch(`/client/hosting/${service.id}/email`);
+      const d = await apiFetch(`/dashboard/hosting/${service.id}/email`);
       setAccounts(d.accounts || []);
     } catch (e: any) { setMgmtError(e.message); }
     finally { setLoadingList(false); }
@@ -596,7 +596,7 @@ function SectionEmail({ service }: { service: Service }) {
 
   async function loadSettings() {
     try {
-      const d = await apiFetch(`/client/hosting/${service.id}/email/settings`);
+      const d = await apiFetch(`/dashboard/hosting/${service.id}/email/settings`);
       const map: Record<string, { spamFilter: boolean; autoForward: boolean; forwardTo: string }> = {};
       for (const s of (d.settings || [])) {
         map[s.email] = { spamFilter: s.spamFilter ?? true, autoForward: s.autoForward ?? false, forwardTo: s.forwardTo || "" };
@@ -613,7 +613,7 @@ function SectionEmail({ service }: { service: Service }) {
     if (!form.email.includes("@")) return toast({ description: "Include the full email address with @domain", variant: "destructive" });
     setCreating(true);
     try {
-      await apiFetch(`/client/hosting/${service.id}/email`, { method: "POST", body: JSON.stringify({ email: form.email, password: form.password, quota: Number(form.quota) }) });
+      await apiFetch(`/dashboard/hosting/${service.id}/email`, { method: "POST", body: JSON.stringify({ email: form.email, password: form.password, quota: Number(form.quota) }) });
       toast({ title: "Email account created", description: form.email });
       setForm({ email: "", password: "", quota: "250" }); setShowCreate(false); loadAccounts();
     } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
@@ -623,7 +623,7 @@ function SectionEmail({ service }: { service: Service }) {
   async function handleDelete(email: string) {
     setDeleting(email);
     try {
-      await apiFetch(`/client/hosting/${service.id}/email`, { method: "DELETE", body: JSON.stringify({ email }) });
+      await apiFetch(`/dashboard/hosting/${service.id}/email`, { method: "DELETE", body: JSON.stringify({ email }) });
       toast({ title: "Deleted", description: `${email} has been removed` });
       loadAccounts();
     } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
@@ -632,7 +632,7 @@ function SectionEmail({ service }: { service: Service }) {
 
   async function handleWebmail() {
     try {
-      const d = await apiFetch(`/client/hosting/${service.id}/email/webmail`, { method: "POST" });
+      const d = await apiFetch(`/dashboard/hosting/${service.id}/email/webmail`, { method: "POST" });
       if (d.url) window.open(d.url, "_blank", "noopener");
     } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
   }
@@ -640,7 +640,7 @@ function SectionEmail({ service }: { service: Service }) {
   async function handleWebmailFor(email: string) {
     setWebmailLoading(email);
     try {
-      const d = await apiFetch(`/client/hosting/${service.id}/email/webmail`, { method: "POST", body: JSON.stringify({ email }) });
+      const d = await apiFetch(`/dashboard/hosting/${service.id}/email/webmail`, { method: "POST", body: JSON.stringify({ email }) });
       if (d.url) window.open(d.url, "_blank", "noopener");
     } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
     finally { setWebmailLoading(null); }
@@ -649,7 +649,7 @@ function SectionEmail({ service }: { service: Service }) {
   async function handleChangePwd() {
     if (!changePwd) return;
     try {
-      await apiFetch(`/client/hosting/${service.id}/email/password`, { method: "PUT", body: JSON.stringify({ email: changePwd.email, password: changePwd.pwd }) });
+      await apiFetch(`/dashboard/hosting/${service.id}/email/password`, { method: "PUT", body: JSON.stringify({ email: changePwd.email, password: changePwd.pwd }) });
       toast({ title: "Password updated" }); setChangePwd(null);
     } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
   }
@@ -660,7 +660,7 @@ function SectionEmail({ service }: { service: Service }) {
     setEmailSettings(prev => ({ ...prev, [email]: updated }));
     setSavingSettings(email + key);
     try {
-      await apiFetch(`/client/hosting/${service.id}/email/settings/${encodeURIComponent(email)}`, {
+      await apiFetch(`/dashboard/hosting/${service.id}/email/settings/${encodeURIComponent(email)}`, {
         method: "PUT", body: JSON.stringify(updated),
       });
     } catch (e: any) {
@@ -675,7 +675,7 @@ function SectionEmail({ service }: { service: Service }) {
     const updated = { ...current, forwardTo };
     setSavingSettings(email + "forwardTo");
     try {
-      await apiFetch(`/client/hosting/${service.id}/email/settings/${encodeURIComponent(email)}`, {
+      await apiFetch(`/dashboard/hosting/${service.id}/email/settings/${encodeURIComponent(email)}`, {
         method: "PUT", body: JSON.stringify(updated),
       });
       toast({ title: "Forwarding address saved" });
@@ -1002,7 +1002,7 @@ function SectionDatabases({ service }: { service: Service }) {
   async function loadDbs() {
     setLoading(true);
     setMgmtError(null);
-    try { const d = await apiFetch(`/client/hosting/${service.id}/databases`); setDbs(d.databases || []); }
+    try { const d = await apiFetch(`/dashboard/hosting/${service.id}/databases`); setDbs(d.databases || []); }
     catch (e: any) { setMgmtError(e.message); }
     finally { setLoading(false); }
   }
@@ -1013,7 +1013,7 @@ function SectionDatabases({ service }: { service: Service }) {
     if (!form.suffix.trim() || !form.password.trim()) return toast({ description: "Database name and password are required", variant: "destructive" });
     setCreating(true);
     try {
-      const d = await apiFetch(`/client/hosting/${service.id}/databases`, { method: "POST", body: JSON.stringify(form) });
+      const d = await apiFetch(`/dashboard/hosting/${service.id}/databases`, { method: "POST", body: JSON.stringify(form) });
       toast({ title: "Database created", description: `${d.database} / user: ${d.dbUser}` });
       setForm({ suffix: "", password: "" }); setShowCreate(false); loadDbs();
     } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
@@ -1023,7 +1023,7 @@ function SectionDatabases({ service }: { service: Service }) {
   async function handleDelete(dbname: string) {
     setDeleting(dbname);
     try {
-      await apiFetch(`/client/hosting/${service.id}/databases/${encodeURIComponent(dbname)}`, { method: "DELETE" });
+      await apiFetch(`/dashboard/hosting/${service.id}/databases/${encodeURIComponent(dbname)}`, { method: "DELETE" });
       toast({ title: "Database deleted" }); loadDbs();
     } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
     finally { setDeleting(null); }
@@ -1032,7 +1032,7 @@ function SectionDatabases({ service }: { service: Service }) {
   async function handlePhpMyAdmin() {
     setPmaLoading(true);
     try {
-      const d = await apiFetch(`/client/hosting/${service.id}/databases/phpmyadmin`, { method: "POST" });
+      const d = await apiFetch(`/dashboard/hosting/${service.id}/databases/phpmyadmin`, { method: "POST" });
       if (d.url) window.open(d.url, "_blank", "noopener");
     } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
     finally { setPmaLoading(false); }
@@ -1157,7 +1157,7 @@ function SectionFiles({ service }: { service: Service }) {
     setLoadingDir(true);
     setIsSyncing(false);
     try {
-      const res = await authFetch(`/client/hosting/${service.id}/files?path=${encodeURIComponent(path)}`);
+      const res = await authFetch(`/dashboard/hosting/${service.id}/files?path=${encodeURIComponent(path)}`);
       const d = await res.json();
       if (res.status === 503 && d.syncing) {
         setIsSyncing(true);
@@ -1190,7 +1190,7 @@ function SectionFiles({ service }: { service: Service }) {
     const ext = item.file.split(".").pop()?.toLowerCase() ?? "";
     if (!TEXT_EXTS.has(ext)) return toast({ description: "Binary files cannot be edited in browser." });
     try {
-      const res = await authFetch(`/client/hosting/${service.id}/files/content?path=${encodeURIComponent(item.fullpath)}`);
+      const res = await authFetch(`/dashboard/hosting/${service.id}/files/content?path=${encodeURIComponent(item.fullpath)}`);
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "Failed");
       setEditFile({ path: item.fullpath, content: d.content });
@@ -1201,7 +1201,7 @@ function SectionFiles({ service }: { service: Service }) {
     if (!editFile) return;
     setSaving(true);
     try {
-      const res = await authFetch(`/client/hosting/${service.id}/files/content`, {
+      const res = await authFetch(`/dashboard/hosting/${service.id}/files/content`, {
         method: "PUT", body: JSON.stringify({ path: editFile.path, content: editFile.content }),
       });
       const d = await res.json();
@@ -1214,7 +1214,7 @@ function SectionFiles({ service }: { service: Service }) {
   async function deleteItem(item: FsItem) {
     if (!confirm(`Delete "${item.file}"? This cannot be undone.`)) return;
     try {
-      const res = await authFetch(`/client/hosting/${service.id}/files`, {
+      const res = await authFetch(`/dashboard/hosting/${service.id}/files`, {
         method: "DELETE", body: JSON.stringify({ path: item.fullpath }),
       });
       const d = await res.json();
@@ -1228,7 +1228,7 @@ function SectionFiles({ service }: { service: Service }) {
     if (!newFolderName.trim()) return;
     setMkdiring(true);
     try {
-      const res = await authFetch(`/client/hosting/${service.id}/files/mkdir`, {
+      const res = await authFetch(`/dashboard/hosting/${service.id}/files/mkdir`, {
         method: "POST", body: JSON.stringify({ path: currentPath, name: newFolderName.trim() }),
       });
       const d = await res.json();
@@ -1248,7 +1248,7 @@ function SectionFiles({ service }: { service: Service }) {
     form.append("dir", currentPath);
     try {
       const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
-      const res = await fetch(`/api/client/hosting/${service.id}/files/upload`, {
+      const res = await fetch(`/api/dashboard/hosting/${service.id}/files/upload`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: form,
@@ -1421,7 +1421,7 @@ function SectionSSL({ service, refetch }: { service: Service; refetch: () => voi
   async function handleInstallSSL() {
     setLoading(true);
     try {
-      const res = await authFetch(`/client/hosting/${service.id}/reinstall-ssl`, { method: "POST" });
+      const res = await authFetch(`/dashboard/hosting/${service.id}/reinstall-ssl`, { method: "POST" });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "Failed");
       toast({ title: isActive ? "SSL reinstalled" : "SSL activated", description: "Your site is now protected with HTTPS." });
@@ -1540,7 +1540,7 @@ function SectionSSH({ service }: { service: Service }) {
   async function loadStatus() {
     setLoading(true);
     setMgmtError(null);
-    try { const d = await apiFetch(`/client/hosting/${service.id}/ssh`); setStatus(d); }
+    try { const d = await apiFetch(`/dashboard/hosting/${service.id}/ssh`); setStatus(d); }
     catch (e: any) { setMgmtError(e.message); }
     finally { setLoading(false); }
   }
@@ -1551,7 +1551,7 @@ function SectionSSH({ service }: { service: Service }) {
     if (!status) return;
     setToggling(true);
     try {
-      await apiFetch(`/client/hosting/${service.id}/ssh/${status.enabled ? "disable" : "enable"}`, { method: "POST" });
+      await apiFetch(`/dashboard/hosting/${service.id}/ssh/${status.enabled ? "disable" : "enable"}`, { method: "POST" });
       toast({ title: status.enabled ? "SSH disabled" : "SSH enabled" });
       loadStatus();
     } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
@@ -1627,7 +1627,7 @@ function SectionBackup({ service }: { service: Service }) {
 
   async function loadBackups() {
     setLoading(true);
-    try { const d = await authFetch(`/client/hosting/${service.id}/backups`).then(r => r.json()); setBackups(Array.isArray(d) ? d : []); }
+    try { const d = await authFetch(`/dashboard/hosting/${service.id}/backups`).then(r => r.json()); setBackups(Array.isArray(d) ? d : []); }
     catch { /* non-fatal */ } finally { setLoading(false); }
   }
 
@@ -1636,7 +1636,7 @@ function SectionBackup({ service }: { service: Service }) {
   async function handleCreate() {
     setCreating(true);
     try {
-      const res = await authFetch(`/client/hosting/${service.id}/backup`, { method: "POST" });
+      const res = await authFetch(`/dashboard/hosting/${service.id}/backup`, { method: "POST" });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "Backup failed");
       toast({ title: "Backup started", description: "Your backup is being created." });
@@ -1647,7 +1647,7 @@ function SectionBackup({ service }: { service: Service }) {
 
   async function handleDelete(id: string) {
     try {
-      await authFetch(`/client/hosting/${service.id}/backup/${id}`, { method: "DELETE" });
+      await authFetch(`/dashboard/hosting/${service.id}/backup/${id}`, { method: "DELETE" });
       loadBackups();
     } catch { /* non-fatal */ }
   }
@@ -1656,7 +1656,7 @@ function SectionBackup({ service }: { service: Service }) {
     if (!confirm(`Restore "${b.filePath ? b.filePath.split("/").pop() : "this backup"}"? This will overwrite current files. Continue?`)) return;
     setRestoringId(b.id);
     try {
-      const res = await authFetch(`/client/hosting/${service.id}/backup/${b.id}/restore`, { method: "POST" });
+      const res = await authFetch(`/dashboard/hosting/${service.id}/backup/${b.id}/restore`, { method: "POST" });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "Restore failed");
       toast({ title: "Restore job started", description: "This may take several minutes to complete." });
@@ -1729,7 +1729,7 @@ function SectionNodejs({ service }: { service: Service }) {
 
   async function load() {
     setLoading(true);
-    try { const d = await apiFetch(`/client/hosting/${service.id}/nodejs`); setApps(d.apps || []); }
+    try { const d = await apiFetch(`/dashboard/hosting/${service.id}/nodejs`); setApps(d.apps || []); }
     catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
     finally { setLoading(false); }
   }
@@ -1740,7 +1740,7 @@ function SectionNodejs({ service }: { service: Service }) {
     if (!form.app_name.trim() || !form.app_root.trim()) return toast({ description: "App name and root directory are required", variant: "destructive" });
     setCreating(true);
     try {
-      await apiFetch(`/client/hosting/${service.id}/nodejs`, { method: "POST", body: JSON.stringify({ ...form, app_port: Number(form.app_port) || 3000 }) });
+      await apiFetch(`/dashboard/hosting/${service.id}/nodejs`, { method: "POST", body: JSON.stringify({ ...form, app_port: Number(form.app_port) || 3000 }) });
       toast({ title: "Node.js app created", description: form.app_name });
       setForm({ app_name: "", app_root: "public_html/myapp", startup_file: "app.js", app_port: "3000", node_version: "" });
       setShowCreate(false); load();
@@ -1751,7 +1751,7 @@ function SectionNodejs({ service }: { service: Service }) {
   async function handleAction(appName: string, action: "start" | "stop" | "restart") {
     setActioning(`${appName}-${action}`);
     try {
-      await apiFetch(`/client/hosting/${service.id}/nodejs/${encodeURIComponent(appName)}/${action}`, { method: "POST" });
+      await apiFetch(`/dashboard/hosting/${service.id}/nodejs/${encodeURIComponent(appName)}/${action}`, { method: "POST" });
       toast({ title: `App ${action}ed` }); load();
     } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
     finally { setActioning(null); }
@@ -1759,7 +1759,7 @@ function SectionNodejs({ service }: { service: Service }) {
 
   async function handleDelete(appName: string) {
     try {
-      await apiFetch(`/client/hosting/${service.id}/nodejs/${encodeURIComponent(appName)}`, { method: "DELETE" });
+      await apiFetch(`/dashboard/hosting/${service.id}/nodejs/${encodeURIComponent(appName)}`, { method: "DELETE" });
       toast({ title: "App deleted" }); load();
     } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
   }
@@ -1854,7 +1854,7 @@ function SectionPython({ service }: { service: Service }) {
 
   async function load() {
     setLoading(true);
-    try { const d = await apiFetch(`/client/hosting/${service.id}/python`); setApps(d.apps || []); }
+    try { const d = await apiFetch(`/dashboard/hosting/${service.id}/python`); setApps(d.apps || []); }
     catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
     finally { setLoading(false); }
   }
@@ -1865,7 +1865,7 @@ function SectionPython({ service }: { service: Service }) {
     if (!form.app_name.trim() || !form.app_root.trim()) return toast({ description: "App name and root directory are required", variant: "destructive" });
     setCreating(true);
     try {
-      await apiFetch(`/client/hosting/${service.id}/python`, { method: "POST", body: JSON.stringify(form) });
+      await apiFetch(`/dashboard/hosting/${service.id}/python`, { method: "POST", body: JSON.stringify(form) });
       toast({ title: "Python app created", description: form.app_name });
       setForm({ app_name: "", app_root: "public_html/myapp", app_uri: "/", python_version: "3.9" });
       setShowCreate(false); load();
@@ -1876,7 +1876,7 @@ function SectionPython({ service }: { service: Service }) {
   async function handleAction(appName: string, action: "restart" | "stop") {
     setActioning(`${appName}-${action}`);
     try {
-      await apiFetch(`/client/hosting/${service.id}/python/${encodeURIComponent(appName)}/${action}`, { method: "POST" });
+      await apiFetch(`/dashboard/hosting/${service.id}/python/${encodeURIComponent(appName)}/${action}`, { method: "POST" });
       toast({ title: `App ${action}ed` }); load();
     } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
     finally { setActioning(null); }
@@ -1884,7 +1884,7 @@ function SectionPython({ service }: { service: Service }) {
 
   async function handleDelete(appName: string) {
     try {
-      await apiFetch(`/client/hosting/${service.id}/python/${encodeURIComponent(appName)}`, { method: "DELETE" });
+      await apiFetch(`/dashboard/hosting/${service.id}/python/${encodeURIComponent(appName)}`, { method: "DELETE" });
       toast({ title: "App deleted" }); load();
     } catch (e: any) { toast({ description: e.message, variant: "destructive" }); }
   }
@@ -1979,7 +1979,7 @@ function SectionPython({ service }: { service: Service }) {
 function DiskUsageCard({ service }: { service: Service }) {
   const [usage, setUsage] = useState<any>(null);
   useEffect(() => {
-    authFetch(`/client/hosting/${service.id}/usage`)
+    authFetch(`/dashboard/hosting/${service.id}/usage`)
       .then(r => r.ok ? r.json() : null)
       .then(d => d && setUsage(d))
       .catch(() => null);
@@ -2142,7 +2142,7 @@ function SectionEnvironment({ service }: { service: Service }) {
   const [settingPhp, setSettingPhp] = useState<string | null>(null);
 
   useEffect(() => {
-    authFetch(`/client/hosting/${service.id}/php-version`)
+    authFetch(`/dashboard/hosting/${service.id}/php-version`)
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d?.version) setCurrentPhp(d.version); })
       .catch(() => null)
@@ -2153,7 +2153,7 @@ function SectionEnvironment({ service }: { service: Service }) {
     if (version === currentPhp) return;
     setSettingPhp(version);
     try {
-      const res = await authFetch(`/client/hosting/${service.id}/php-version`, {
+      const res = await authFetch(`/dashboard/hosting/${service.id}/php-version`, {
         method: "POST",
         body: JSON.stringify({ version }),
       });
@@ -2358,7 +2358,7 @@ const ACTION_MAP: Record<string, { label: string; color: string; icon: React.Ele
     icon: ShieldCheck,
     action: (svc) => {
       const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
-      fetch(`/api/client/hosting/${svc.id}/fix-permissions`, {
+      fetch(`/api/dashboard/hosting/${svc.id}/fix-permissions`, {
         method: "POST", headers: { Authorization: `Bearer ${token}` },
       }).then(() => { /* toast handled by parent */ }).catch(() => {});
     },
@@ -2369,7 +2369,7 @@ const ACTION_MAP: Record<string, { label: string; color: string; icon: React.Ele
     icon: Zap,
     action: (svc) => {
       const token = localStorage.getItem("token") || localStorage.getItem("noehost_token") || "";
-      fetch(`/api/client/hosting/${svc.id}/cache`, {
+      fetch(`/api/dashboard/hosting/${svc.id}/cache`, {
         method: "POST", headers: { Authorization: `Bearer ${token}` },
         body: JSON.stringify({ edge: true, object: true }),
       }).catch(() => {});
@@ -2736,7 +2736,7 @@ function SectionStaging({ service }: { service: Service }) {
 
   const load = async () => {
     try {
-      const r = await authFetch(`/client/hosting/${service.id}/staging`);
+      const r = await authFetch(`/dashboard/hosting/${service.id}/staging`);
       if (r.ok) { const d = await r.json(); setStagingData(d.staging); setSyncLogs(d.logs ?? []); }
     } catch {} finally { setLoadingData(false); }
   };
@@ -2767,7 +2767,7 @@ function SectionStaging({ service }: { service: Service }) {
       { key: "ssl",       label: "Issuing SSL certificate",    status: "pending" },
     ]);
     try {
-      const r = await authFetch(`/client/hosting/${service.id}/staging/create`, { method: "POST" });
+      const r = await authFetch(`/dashboard/hosting/${service.id}/staging/create`, { method: "POST" });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Create failed");
       await animateSteps(d.steps);
@@ -2790,7 +2790,7 @@ function SectionStaging({ service }: { service: Service }) {
       { key: "verify",  label: "Verifying deployment",        status: "pending" },
     ]);
     try {
-      const r = await authFetch(`/client/hosting/${service.id}/staging/push-to-live`, { method: "POST" });
+      const r = await authFetch(`/dashboard/hosting/${service.id}/staging/push-to-live`, { method: "POST" });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Push failed");
       await animateSteps(d.steps);
@@ -2805,7 +2805,7 @@ function SectionStaging({ service }: { service: Service }) {
   async function handleDelete() {
     setActionLoading("delete");
     try {
-      const r = await authFetch(`/client/hosting/${service.id}/staging`, { method: "DELETE" });
+      const r = await authFetch(`/dashboard/hosting/${service.id}/staging`, { method: "DELETE" });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Delete failed");
       setStagingData(null); setProgressSteps(null);
@@ -3131,14 +3131,14 @@ function SectionMonitor({ service }: { service: Service }) {
 
   const load = async () => {
     try {
-      const r = await authFetch(`/client/hosting/${service.id}/resource-monitor`);
+      const r = await authFetch(`/dashboard/hosting/${service.id}/resource-monitor`);
       if (r.ok) { const d = await r.json(); setData(d); setLastRefresh(new Date()); }
     } catch {}
   };
 
   const loadHistory = async () => {
     try {
-      const r = await authFetch(`/client/hosting/${service.id}/scan-history`);
+      const r = await authFetch(`/dashboard/hosting/${service.id}/scan-history`);
       if (r.ok) { const d = await r.json(); setScanHistory(d.scans || []); }
     } catch {}
   };
@@ -3166,7 +3166,7 @@ function SectionMonitor({ service }: { service: Service }) {
   async function handleFixPermissions() {
     setScanning(true);
     try {
-      const r = await authFetch(`/client/hosting/${service.id}/fix-permissions`, { method: "POST" });
+      const r = await authFetch(`/dashboard/hosting/${service.id}/fix-permissions`, { method: "POST" });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Scan failed");
       toast({
@@ -3185,7 +3185,7 @@ function SectionMonitor({ service }: { service: Service }) {
   async function toggleCache(key: "edge_cache" | "object_cache", value: boolean) {
     setCacheLoading(key);
     try {
-      const r = await authFetch(`/client/hosting/${service.id}/cache-settings`, {
+      const r = await authFetch(`/dashboard/hosting/${service.id}/cache-settings`, {
         method: "POST",
         body: JSON.stringify({ [key]: value }),
       });
@@ -3346,7 +3346,7 @@ function SectionMonitor({ service }: { service: Service }) {
 // MAIN: ServiceDetail
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function ServiceDetail() {
-  const [, params] = useRoute("/client/hosting/:id");
+  const [, params] = useRoute("/dashboard/hosting/:id");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const serviceId = params?.id;
@@ -3358,7 +3358,7 @@ export default function ServiceDetail() {
 
   async function fetchService() {
     try {
-      const res = await authFetch(`/client/hosting/${serviceId}`);
+      const res = await authFetch(`/dashboard/hosting/${serviceId}`);
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || "Not found"); }
       const d = await res.json();
       setService(d);
@@ -3389,7 +3389,7 @@ export default function ServiceDetail() {
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
         <AlertTriangle size={40} className="text-muted-foreground" />
         <p className="text-foreground font-medium">Service not found</p>
-        <Button variant="outline" onClick={() => setLocation("/client/hosting")}>Back to Hosting</Button>
+        <Button variant="outline" onClick={() => setLocation("/dashboard/hosting")}>Back to Hosting</Button>
       </div>
     );
   }
@@ -3405,7 +3405,7 @@ export default function ServiceDetail() {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Bar */}
         <div className="border-b border-border bg-background px-6 py-3 flex items-center gap-3 shrink-0">
-          <Button variant="ghost" size="sm" onClick={() => setLocation("/client/hosting")} className="gap-1.5 text-muted-foreground">
+          <Button variant="ghost" size="sm" onClick={() => setLocation("/dashboard/hosting")} className="gap-1.5 text-muted-foreground">
             <ArrowLeft size={15} /> Back
           </Button>
           <div className="w-px h-4 bg-border" />

@@ -219,7 +219,7 @@ export default function NoEmailManage() {
       <div className="p-6 text-center text-muted-foreground">
         <AlertCircle className="w-12 h-12 mx-auto mb-3 opacity-40" />
         <p className="font-medium">Order not found</p>
-        <Button variant="outline" className="mt-4" onClick={() => navigate("/client/email")}>
+        <Button variant="outline" className="mt-4" onClick={() => navigate("/dashboard/email")}>
           <ArrowLeft className="w-4 h-4 mr-2" /> Back to Email
         </Button>
       </div>
@@ -238,7 +238,7 @@ export default function NoEmailManage() {
     <div className="max-w-5xl mx-auto p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <button onClick={() => navigate("/client/email")}
+        <button onClick={() => navigate("/dashboard/email")}
           className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
           <ArrowLeft className="w-5 h-5" />
         </button>

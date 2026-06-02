@@ -81,7 +81,7 @@ export default function DomainOrder() {
 
   // Redirect if no domain
   useEffect(() => {
-    if (!domain) setLocation("/client/domains");
+    if (!domain) setLocation("/dashboard/domains");
   }, [domain]);
 
   // Wallet balance
@@ -214,8 +214,8 @@ export default function DomainOrder() {
           )}
         </div>
         <div className="flex gap-3 justify-center flex-wrap">
-          <Button variant="outline" onClick={() => setLocation("/client/invoices")}>View Invoice</Button>
-          <Button style={{ background: BRAND, border: "none" }} onClick={() => setLocation("/client/domains")}>
+          <Button variant="outline" onClick={() => setLocation("/dashboard/invoices")}>View Invoice</Button>
+          <Button style={{ background: BRAND, border: "none" }} onClick={() => setLocation("/dashboard/domains")}>
             My Domains <ChevronRight size={14} />
           </Button>
         </div>
@@ -227,7 +227,7 @@ export default function DomainOrder() {
     <div className="max-w-xl mx-auto px-4 py-8 space-y-6">
 
       {/* Back */}
-      <button onClick={() => setLocation("/client/domains")}
+      <button onClick={() => setLocation("/dashboard/domains")}
         className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
         <ArrowLeft size={14} /> Back to Domain Search
       </button>

@@ -287,7 +287,7 @@ export default function InvoiceDetail() {
   if (!invoice) return (
     <div className="text-center py-12">
       <p className="text-slate-500">Invoice not found.</p>
-      <Button variant="outline" className="mt-4" onClick={() => setLocation("/client/invoices")}>Back to Invoices</Button>
+      <Button variant="outline" className="mt-4" onClick={() => setLocation("/dashboard/invoices")}>Back to Invoices</Button>
     </div>
   );
 
@@ -318,7 +318,7 @@ export default function InvoiceDetail() {
 
       {/* Toolbar */}
       <div className="flex items-center justify-between print:hidden">
-        <Button variant="ghost" size="sm" onClick={() => setLocation("/client/invoices")} className="gap-2 text-slate-600 hover:text-slate-900">
+        <Button variant="ghost" size="sm" onClick={() => setLocation("/dashboard/invoices")} className="gap-2 text-slate-600 hover:text-slate-900">
           <ArrowLeft size={16} /> Back to Invoices
         </Button>
         <div className="flex gap-2 flex-wrap">

@@ -58,7 +58,7 @@ export function SocialProofToast() {
 
   // Fetch real events from API
   useEffect(() => {
-    if (!location.startsWith("/client/orders/new") && !location.startsWith("/client/checkout") && !location.startsWith("/checkout") && !location.startsWith("/cart")) return;
+    if (!location.startsWith("/dashboard/orders/new") && !location.startsWith("/dashboard/checkout") && !location.startsWith("/checkout") && !location.startsWith("/cart")) return;
     fetch("/api/social-proof/feed")
       .then(r => r.json())
       .then(d => { if (d.events?.length) setEvents(d.events); })
@@ -82,7 +82,7 @@ export function SocialProofToast() {
   };
 
   useEffect(() => {
-    if (!location.startsWith("/client/orders/new") && !location.startsWith("/client/checkout") && !location.startsWith("/checkout") && !location.startsWith("/cart")) return;
+    if (!location.startsWith("/dashboard/orders/new") && !location.startsWith("/dashboard/checkout") && !location.startsWith("/checkout") && !location.startsWith("/cart")) return;
     // First toast after 6 s, then every 20 s
     const initial = setTimeout(() => {
       showNext();

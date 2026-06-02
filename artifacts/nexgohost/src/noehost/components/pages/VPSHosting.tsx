@@ -104,7 +104,7 @@ const VPSHosting: React.FC = () => {
     if (planId) {
       window.location.href = `/order/vps/${planId}`;
     } else {
-      window.location.href = '/client/orders/new';
+      window.location.href = '/dashboard/orders/new';
     }
   };
 

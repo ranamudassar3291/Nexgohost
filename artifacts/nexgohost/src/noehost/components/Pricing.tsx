@@ -31,8 +31,8 @@ const Pricing: React.FC = () => {
     const raw = p._raw || p;
     setSelectedPlan(null);
     window.location.href = raw.id
-      ? `/client/orders/new?plan_id=${raw.id}`
-      : '/client/orders/new';
+      ? `/dashboard/orders/new?plan_id=${raw.id}`
+      : '/dashboard/orders/new';
   };
 
   const { plans: apiShared, loading: loadingShared } = usePackagesByGroup('shared-hosting');
