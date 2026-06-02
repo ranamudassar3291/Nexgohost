@@ -1,0 +1,26 @@
+#4 - WhatsApp Session — Permanent DB Persistence
+What & Why
+Currently WhatsApp session files are stored in whatsapp-session/ folder on disk. When the Replit container resets (credit runs out, server restart, environment reset), this folder is wiped and the admin must rescan the QR code. This is disruptive because the bot stops working silently.
+
+Fix: store the entire Baileys session (creds.json + signal keys) in PostgreSQL. On every server start, session is loaded from DB. Session only clears when admin explicitly clicks "Disconnect" — never automatically.
+
+Done looks like
+Admin scans QR once → session saved to PostgreSQL wa_sessions table
+Server restarts, Replit container resets, environment resets → bot auto-reconnects using DB session, no QR needed
+WhatsApp Settings page shows "Connected (session persisted)" indicator
+"Disconnect" button manually clears DB session + file session
+If Baileys gets a logout signal from WhatsApp (e.g., phone logged out remotely), bot detects it and sends an email alert to admin + shows disconnected status — but does NOT auto-clear session until admin confirms
+Session files are also kept on disk as a fast local cache; DB is the backup/source of truth on fresh containers
+Out of scope
+Multi-device / multi-number support (single admin number only)
+WhatsApp Business API migration
+Steps
+wa_sessions DB table — Add CREATE TABLE IF NOT EXISTS wa_sessions (id TEXT PRIMARY KEY, data JSONB, updated_at TIMESTAMP DEFAULT NOW()) to startup migrations in index.ts. Row key "default" holds the full session blob.
+Custom auth state provider — In whatsapp.ts, replace useMultiFileAuthState(SESSION_DIR) with a custom useDbAuthState() function. This function reads session from wa_sessions table on init (falling back to disk files if DB row missing). saveCreds writes to both DB and disk. Signal key store reads/writes DB + disk in parallel.
+Restore from DB on startup — In autoConnectIfSession(), check DB first (SELECT data FROM wa_sessions WHERE id='default'). If found, hydrate the in-memory auth state from DB data and call initWhatsApp(). Only fall back to disk file check if DB row is absent.
+Never auto-clear on disconnect — In the connection.update handler, when DisconnectReason.loggedOut is received, mark status as disconnected but do NOT delete session files or DB row. Send email alert to admin. Only disconnectWhatsApp() (manual disconnect API) clears both DB + disk.
+Admin UI indicator — In WhatsAppSettings.tsx, add a small "Session: DB Saved ✓" green badge next to the connection status when connectedAt is set. No other UI changes needed.
+Relevant files
+artifacts/api-server/src/lib/whatsapp.ts:50-60,366-430,493-510,578-590
+artifacts/api-server/src/index.ts
+artifacts/nexgohost/src/pages/admin/WhatsAppSettings.tsx

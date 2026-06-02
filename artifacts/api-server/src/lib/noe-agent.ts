@@ -25,7 +25,10 @@ import { hashPassword } from "./auth.js";
 import { provisionHostingService } from "./provision.js";
 import { processInvoicePaid } from "./activateInvoice.js";
 import { suspendHostingAccount, unsuspendHostingAccount } from "./provision.js";
-import { cpanelTerminate } from "./cpanel.js";
+import {
+  cpanelTerminate, cpanelInstallSSL, cpanelSaveFile,
+  cpanelFullBackup, cpanelUapi, cpanelChangePassword,
+} from "./cpanel.js";
 import {
   emailOrderCreated, emailHostingCreated, emailWelcome,
   emailServiceSuspended, emailGeneric,
@@ -104,6 +107,13 @@ Intents:
 - share_invoice: Share an invoice with client via WhatsApp. Extract: email OR invoiceId
 - mark_invoice_paid: Mark an invoice as paid. Extract: invoiceId OR email (latest unpaid)
 - fix_issue: Admin describes a client technical issue, generate fix steps. Extract: issueDesc, domain (optional), email (optional)
+- ssl_install: Install/reinstall SSL certificate on a domain. Extract: domain
+- wp_fix_404: Fix WordPress 404 / permalink errors by rewriting .htaccess. Extract: domain OR email
+- reset_password: Reset cPanel account password. Extract: domain OR email, password (optional new password)
+- site_check: Check if a website is up/down. Extract: domain
+- create_backup: Create a full cPanel backup. Extract: domain OR email
+- disk_usage: Check disk usage of a hosting account. Extract: domain OR email
+- mark_paid: Mark an invoice as paid and activate service. Extract: invoiceId OR email
 - send_message: Send a custom WhatsApp message to a client. Extract: email OR phone, clientMsg
 - remind_all: Send renewal reminders to all due clients. Extract: filterDays (optional)
 - help: Show help/commands. No params.
@@ -140,6 +150,38 @@ Return JSON like: {"intent":"domain_check","domain":"example.com"}`;
     if (/renewal|due|expire/.test(lower)) return { intent: "renewals" };
     if (/invoice.*share|share.*invoice|invoice.*send/.test(lower)) return { intent: "share_invoice" };
     if (/remind.*all|all.*remind|bulk.*remind/.test(lower)) return { intent: "remind_all" };
+    if (/ssl.*install|ssl.*lagao|install.*ssl|ssl.*laga|certificate.*install/.test(lower)) {
+      const m = msg.match(/([a-zA-Z0-9-]+\.[a-zA-Z]{2,})/); return { intent: "ssl_install", domain: m?.[1] };
+    }
+    if (/404|wp.*fix|wordpress.*fix|htaccess|permalink|fix.*wp|fix.*wordpress/.test(lower)) {
+      const emailM = msg.match(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i);
+      const domainM = msg.match(/([a-zA-Z0-9-]+\.[a-zA-Z]{2,})/);
+      return { intent: "wp_fix_404", email: emailM?.[0], domain: domainM?.[1] };
+    }
+    if (/password.*reset|reset.*password|password.*badlo|password.*change|naya.*password/.test(lower)) {
+      const emailM = msg.match(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i);
+      const domainM = msg.match(/([a-zA-Z0-9-]+\.[a-zA-Z]{2,})/);
+      const passM = msg.match(/\b([A-Z][a-zA-Z0-9@#$!]{7,})\b/);
+      return { intent: "reset_password", email: emailM?.[0], domain: domainM?.[1], password: passM?.[1] };
+    }
+    if (/site.*check|check.*site|website.*check|up.*down|site.*dekho/.test(lower)) {
+      const m = msg.match(/([a-zA-Z0-9-]+\.[a-zA-Z]{2,})/); return { intent: "site_check", domain: m?.[1] };
+    }
+    if (/backup.*lo|backup.*karo|create.*backup|full.*backup|backup.*banao/.test(lower)) {
+      const emailM = msg.match(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i);
+      const domainM = msg.match(/([a-zA-Z0-9-]+\.[a-zA-Z]{2,})/);
+      return { intent: "create_backup", email: emailM?.[0], domain: domainM?.[1] };
+    }
+    if (/disk.*usage|disk.*dekho|disk.*kitna|space.*check|storage.*check/.test(lower)) {
+      const emailM = msg.match(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i);
+      const domainM = msg.match(/([a-zA-Z0-9-]+\.[a-zA-Z]{2,})/);
+      return { intent: "disk_usage", email: emailM?.[0], domain: domainM?.[1] };
+    }
+    if (/invoice.*paid|paid.*karo|mark.*paid|payment.*received/.test(lower)) {
+      const emailM = msg.match(/[\w.+-]+@[\w-]+\.[a-z]{2,}/i);
+      const invM = msg.match(/\b(NOE-\d+|\d{3,})\b/i);
+      return { intent: "mark_paid", email: emailM?.[0], invoiceId: invM?.[1] };
+    }
     if (/fix|issue|problem|error|masla|solve/.test(lower)) return { intent: "fix_issue" };
     if (/message|msg.*send|send.*msg|client.*ko.*bolo/.test(lower)) return { intent: "send_message" };
     if (/order.*add|add.*order|new.*order|create.*order/.test(lower)) {
@@ -157,6 +199,341 @@ Return JSON like: {"intent":"domain_check","domain":"example.com"}`;
     if (/help|commands/.test(lower)) return { intent: "help" };
     return { intent: "unknown" };
   }
+}
+
+// ── Server config helper ──────────────────────────────────────────────────────
+async function getServerConfig(serverId: string) {
+  const [srv] = await db.select().from(serversTable).where(eq(serversTable.id, serverId)).limit(1);
+  if (!srv?.hostname || !srv.apiToken) return null;
+  return { hostname: srv.hostname, port: Number(srv.port ?? 2087), username: srv.username ?? "root", apiToken: srv.apiToken };
+}
+
+async function findServiceWithServer(identifier: string) {
+  let service = await findService(identifier);
+  if (!service) {
+    const c = await findClient(identifier);
+    if (c) service = await findServiceByEmail(c.email);
+  }
+  return service || null;
+}
+
+// ── CMD: SSL Install ──────────────────────────────────────────────────────────
+async function cmdSslInstall(domain: string): Promise<string> {
+  if (!domain) return "❌ Domain name batao. Example: *ssl install karo xyz.com*";
+  const clean = domain.toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "");
+  const service = await findServiceWithServer(clean);
+  if (!service) return `❌ *${clean}* ki koi hosting service nahi mili. Domain check karo.`;
+  if (!service.username) return `⚠️ *${clean}* ka cPanel username nahi hai. Service manually provision karein pehle.`;
+  if (!service.serverId) return `⚠️ *${clean}* ka server nahi assign hua.`;
+
+  const server = await getServerConfig(service.serverId);
+  if (!server) return `❌ Server config incomplete hai. Admin → Servers check karo.`;
+
+  try {
+    await cpanelInstallSSL(server, clean);
+    await db.update(hostingServicesTable).set({ sslStatus: "active", updatedAt: new Date() }).where(eq(hostingServicesTable.id, service.id));
+    const [client] = await db.select().from(usersTable).where(eq(usersTable.id, service.clientId)).limit(1);
+    if (client?.phone) {
+      sendToClientPhone(client.phone,
+        `🔒 *SSL Certificate Installed — Noehost*\n\n` +
+        `Hi *${client.firstName}!*\n\n` +
+        `Your website *${clean}* ka SSL certificate successfully install ho gaya hai! 🎉\n\n` +
+        `✅ Website ab HTTPS se accessible hai: https://${clean}\n\n` +
+        `_Noehost Team 🚀_`, "client_notification"
+      ).catch(() => {});
+    }
+    return [
+      `🔒 *SSL Installed Successfully!*\n`,
+      `🌐 Domain: *${clean}*`,
+      `👤 cPanel User: *${service.username}*`,
+      `✅ Status: *HTTPS Active*`,
+      `🔗 Visit: https://${clean}`,
+      client?.phone ? `📲 Client notified via WhatsApp.` : `⚠️ No phone — notification skipped.`,
+    ].join("\n");
+  } catch (e: any) {
+    return `❌ *SSL install failed* for ${clean}\n\nError: ${e.message}\n\n💡 Check DNS propagation — domain must point to your server.`;
+  }
+}
+
+// ── CMD: WordPress 404 Fix ────────────────────────────────────────────────────
+const WP_HTACCESS = `# BEGIN WordPress
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteBase /
+RewriteRule ^index\\.php$ - [L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /index.php [L]
+</IfModule>
+# END WordPress`;
+
+async function cmdWpFix404(identifier: string): Promise<string> {
+  if (!identifier) return "❌ Domain ya email batao. Example: *wp fix 404 xyz.com*";
+  const service = await findServiceWithServer(identifier);
+  if (!service) return `❌ *${identifier}* ki koi hosting service nahi mili.`;
+  if (!service.username) return `⚠️ cPanel username missing. Service provision check karo.`;
+  if (!service.serverId) return `⚠️ Server assign nahi hua.`;
+
+  const server = await getServerConfig(service.serverId);
+  if (!server) return `❌ Server config incomplete.`;
+
+  const domain = service.domain || identifier;
+  const htaccessPath = `/home/${service.username}/public_html/.htaccess`;
+
+  try {
+    await cpanelSaveFile(server, service.username, htaccessPath, WP_HTACCESS);
+    const [client] = await db.select().from(usersTable).where(eq(usersTable.id, service.clientId)).limit(1);
+    if (client?.phone) {
+      sendToClientPhone(client.phone,
+        `🔧 *WordPress 404 Fixed — Noehost*\n\n` +
+        `Hi *${client.firstName}!*\n\n` +
+        `Aapki website *${domain}* ka WordPress permalink issue fix ho gaya! ✅\n\n` +
+        `Agar abhi bhi koi page 404 de raha hai to WordPress Dashboard → Settings → Permalinks → Save Changes karein.\n\n` +
+        `_Noehost Team 🚀_`, "client_notification"
+      ).catch(() => {});
+    }
+    return [
+      `🔧 *WordPress 404 Fixed!*\n`,
+      `🌐 Domain: *${domain}*`,
+      `📁 File: public_html/.htaccess`,
+      `✅ Standard WordPress rewrite rules written`,
+      ``,
+      `💡 Agar abhi bhi 404 aaye: WordPress → Settings → Permalinks → Save`,
+      client?.phone ? `📲 Client notified.` : `⚠️ No phone — notification skipped.`,
+    ].join("\n");
+  } catch (e: any) {
+    return `❌ .htaccess update failed: ${e.message}`;
+  }
+}
+
+// ── CMD: Reset cPanel Password ────────────────────────────────────────────────
+async function cmdResetPassword(identifier: string, newPass?: string): Promise<string> {
+  if (!identifier) return "❌ Domain ya email batao. Example: *reset password xyz.com NewPass@123*";
+  const service = await findServiceWithServer(identifier);
+  if (!service) return `❌ *${identifier}* ki koi hosting service nahi mili.`;
+  if (!service.username) return `⚠️ cPanel username missing.`;
+  if (!service.serverId) return `⚠️ Server nahi assign hua.`;
+
+  const server = await getServerConfig(service.serverId);
+  if (!server) return `❌ Server config incomplete.`;
+
+  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#!";
+  const generatedPass = newPass && newPass.length >= 8
+    ? newPass
+    : Array.from({ length: 14 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+
+  try {
+    await cpanelChangePassword(server, service.username, generatedPass);
+    const [client] = await db.select().from(usersTable).where(eq(usersTable.id, service.clientId)).limit(1);
+    if (client?.phone) {
+      sendToClientPhone(client.phone,
+        `🔑 *cPanel Password Updated — Noehost*\n\n` +
+        `Hi *${client.firstName}!*\n\n` +
+        `Aapka cPanel password reset ho gaya hai.\n\n` +
+        `━━━━━━━━━━━━━━━━━━\n` +
+        `🌐 Domain: *${service.domain || identifier}*\n` +
+        `👤 Username: *${service.username}*\n` +
+        `🔑 New Password: *${generatedPass}*\n` +
+        `━━━━━━━━━━━━━━━━━━\n\n` +
+        `🔗 cPanel Login: ${service.cpanelUrl || `https://${server.hostname}:2083`}\n\n` +
+        `⚠️ Yeh message save kar lein!\n` +
+        `_Noehost Team 🚀_`, "client_notification"
+      ).catch(() => {});
+    }
+    return [
+      `🔑 *Password Reset Successful!*\n`,
+      `🌐 Domain: *${service.domain || identifier}*`,
+      `👤 cPanel User: *${service.username}*`,
+      `🔑 New Password: *${generatedPass}*`,
+      `🔗 cPanel: ${service.cpanelUrl || `https://${server.hostname}:2083`}`,
+      ``,
+      client?.phone ? `📲 New credentials sent to client via WhatsApp!` : `⚠️ No phone — WhatsApp not sent. Share manually.`,
+    ].join("\n");
+  } catch (e: any) {
+    return `❌ Password reset failed: ${e.message}`;
+  }
+}
+
+// ── CMD: Site Check ───────────────────────────────────────────────────────────
+async function cmdSiteCheck(domain: string): Promise<string> {
+  if (!domain) return "❌ Domain batao. Example: *site check karo xyz.com*";
+  const clean = domain.toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "");
+  const url = `https://${clean}`;
+  const start = Date.now();
+
+  try {
+    const resp = await fetch(url, {
+      method: "GET",
+      redirect: "follow",
+      signal: AbortSignal.timeout(10000),
+      headers: { "User-Agent": "NoeAgent-SiteCheck/1.0" },
+    });
+    const ms = Date.now() - start;
+    const finalUrl = resp.url !== url ? `\n🔀 Redirected to: ${resp.url}` : "";
+    const speed = ms < 500 ? "⚡ Excellent" : ms < 1500 ? "✅ Good" : ms < 3000 ? "🟡 Slow" : "🔴 Very Slow";
+
+    return [
+      `🌐 *Site Check: ${clean}*\n`,
+      `━━━━━━━━━━━━━━━━━━`,
+      `✅ *Status: ONLINE*`,
+      `📊 HTTP Code: *${resp.status} ${resp.statusText}*`,
+      `⏱️ Response Time: *${ms}ms* — ${speed}`,
+      finalUrl,
+      `━━━━━━━━━━━━━━━━━━`,
+      `🕐 Checked: ${new Date().toLocaleString("en-PK", { timeZone: "Asia/Karachi" })}`,
+    ].filter(Boolean).join("\n");
+  } catch (e: any) {
+    const ms = Date.now() - start;
+    const reason = e.name === "TimeoutError" ? "Request timed out (>10s)" : e.message;
+    return [
+      `🌐 *Site Check: ${clean}*\n`,
+      `━━━━━━━━━━━━━━━━━━`,
+      `❌ *Status: OFFLINE / UNREACHABLE*`,
+      `⏱️ Time: *${ms}ms*`,
+      `❗ Reason: ${reason}`,
+      `━━━━━━━━━━━━━━━━━━`,
+      `💡 Check: DNS propagation, server status, or firewall rules.`,
+    ].join("\n");
+  }
+}
+
+// ── CMD: Create Backup ────────────────────────────────────────────────────────
+async function cmdCreateBackup(identifier: string): Promise<string> {
+  if (!identifier) return "❌ Domain ya email batao. Example: *backup karo xyz.com*";
+  const service = await findServiceWithServer(identifier);
+  if (!service) return `❌ *${identifier}* ki koi hosting service nahi mili.`;
+  if (!service.username) return `⚠️ cPanel username missing.`;
+  if (!service.serverId) return `⚠️ Server nahi assign hua.`;
+
+  const server = await getServerConfig(service.serverId);
+  if (!server) return `❌ Server config incomplete.`;
+
+  try {
+    const result = await cpanelFullBackup(server, service.username);
+    const ts = new Date().toLocaleString("en-PK", { timeZone: "Asia/Karachi" });
+    return [
+      `📦 *Backup ${result.status === "initiated" ? "Started" : "Done"}!*\n`,
+      `🌐 Domain: *${service.domain || identifier}*`,
+      `👤 cPanel User: *${service.username}*`,
+      `📋 Status: *${result.status.toUpperCase()}*`,
+      `📝 ${result.message}`,
+      `🕐 Time: ${ts}`,
+    ].join("\n");
+  } catch (e: any) {
+    return `❌ Backup failed: ${e.message}`;
+  }
+}
+
+// ── CMD: Disk Usage ───────────────────────────────────────────────────────────
+async function cmdDiskUsage(identifier: string): Promise<string> {
+  if (!identifier) return "❌ Domain ya email batao. Example: *disk usage dekho xyz.com*";
+  const service = await findServiceWithServer(identifier);
+  if (!service) return `❌ *${identifier}* ki koi hosting service nahi mili.`;
+  if (!service.username) return `⚠️ cPanel username missing.`;
+  if (!service.serverId) return `⚠️ Server nahi assign hua.`;
+
+  const server = await getServerConfig(service.serverId);
+  if (!server) return `❌ Server config incomplete.`;
+
+  try {
+    const qd = await cpanelUapi(server, service.username, "Quota", "get_quota_info");
+    const data = qd ?? {};
+
+    const usedBytes = Number(data.bytes_used ?? data.quota_bytes_used ?? data.used ?? data.diskused ?? 0);
+    const limitBytes = Number(data.bytes_limit ?? data.quota_bytes_limit ?? data.limit ?? data.disklimit ?? 0);
+    const usedMB = usedBytes > 0 ? (usedBytes / 1048576).toFixed(1) : (Number(service.diskUsage ?? 0)).toFixed(1);
+    const limitMB = limitBytes > 0 ? (limitBytes / 1048576).toFixed(0) : Number(service.diskLimit ?? 0);
+    const pct = limitBytes > 0 ? Math.round((usedBytes / limitBytes) * 100) : 0;
+    const filled = Math.round(pct / 10);
+    const bar = "█".repeat(filled) + "░".repeat(10 - filled);
+    const alert = pct >= 90 ? `\n⚠️ *CRITICAL: ${pct}% full! Clean files ya upgrade plan karo!*`
+      : pct >= 75 ? `\n🟡 *Warning: ${pct}% used. Monitor closely.*` : "";
+
+    return [
+      `💾 *Disk Usage: ${service.domain || identifier}*\n`,
+      `━━━━━━━━━━━━━━━━━━`,
+      `👤 cPanel User: *${service.username}*`,
+      `📊 Used: *${usedMB} MB* ${limitMB ? `/ ${limitMB} MB` : "(unlimited)"}`,
+      limitMB ? `📈 [${bar}] ${pct}%` : "",
+      alert,
+      `━━━━━━━━━━━━━━━━━━`,
+      `🕐 ${new Date().toLocaleString("en-PK", { timeZone: "Asia/Karachi" })}`,
+    ].filter(Boolean).join("\n");
+  } catch (e: any) {
+    const fallbackUsed = Number(service.diskUsage ?? 0).toFixed(1);
+    const fallbackLimit = Number(service.diskLimit ?? 0);
+    return [
+      `💾 *Disk Usage: ${service.domain || identifier}*\n`,
+      `👤 cPanel User: *${service.username}*`,
+      `📊 Used (DB record): *${fallbackUsed} MB*${fallbackLimit ? ` / ${fallbackLimit} MB` : ""}`,
+      `⚠️ Live UAPI call failed: ${e.message}`,
+    ].join("\n");
+  }
+}
+
+// ── CMD: Mark Invoice Paid ────────────────────────────────────────────────────
+async function cmdMarkPaid(data: { invoiceId?: string; email?: string }): Promise<string> {
+  let invoice: any = null;
+  let client: any = null;
+
+  if (data.invoiceId) {
+    const id = data.invoiceId.replace(/^NOE-/i, "");
+    [invoice] = await db.select().from(invoicesTable)
+      .where(or(eq(invoicesTable.id, data.invoiceId), ilike(invoicesTable.invoiceNumber, `%${id}%`))).limit(1);
+  }
+  if (!invoice && data.email) {
+    client = await findClient(data.email);
+    if (client) {
+      [invoice] = await db.select().from(invoicesTable)
+        .where(and(
+          eq(invoicesTable.clientId, client.id),
+          or(eq(invoicesTable.status, "unpaid"), eq(invoicesTable.status, "overdue")),
+        )).orderBy(desc(invoicesTable.createdAt)).limit(1);
+    }
+  }
+
+  if (!invoice) return `❌ Invoice nahi mila. Invoice number (e.g. NOE-02341) ya client email batao.`;
+  if (invoice.status === "paid") return `✅ Invoice *${invoice.invoiceNumber}* already paid hai!`;
+
+  if (!client) {
+    [client] = await db.select().from(usersTable).where(eq(usersTable.id, invoice.clientId)).limit(1);
+  }
+
+  const txnRef = `WA-AGENT-${Date.now()}`;
+  let activationStatus = "Not triggered (no linked order)";
+
+  try {
+    const result = await processInvoicePaid(invoice.id, txnRef, "Marked paid via Noe WhatsApp Agent");
+    activationStatus = result ? "✅ Service activated/updated!" : "ℹ️ processInvoicePaid returned null";
+  } catch (e: any) {
+    activationStatus = `⚠️ Activation error: ${e.message.slice(0, 60)}`;
+  }
+
+  if (client?.phone) {
+    sendToClientPhone(client.phone,
+      `✅ *Payment Received — Noehost*\n\n` +
+      `Hi *${client?.firstName || "Client"}!*\n\n` +
+      `Aapka payment receive ho gaya hai. Shukriya! 🙏\n\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `🧾 Invoice: *${invoice.invoiceNumber}*\n` +
+      `💰 Amount: *PKR ${Number(invoice.total).toLocaleString()}*\n` +
+      `📌 Status: *PAID ✅*\n` +
+      `━━━━━━━━━━━━━━━━━━\n\n` +
+      `Aapki service activate ho rahi hai. Thodi der mein ready ho jaye gi.\n\n` +
+      `_Noehost Team 🚀_`, "client_notification"
+    ).catch(() => {});
+  }
+
+  return [
+    `✅ *Invoice Marked PAID!*\n`,
+    `🧾 Invoice: *${invoice.invoiceNumber}*`,
+    `👤 Client: ${client ? `${client.firstName} (${client.email})` : invoice.clientId}`,
+    `💰 Amount: *PKR ${Number(invoice.total).toLocaleString()}*`,
+    `🔖 TXN Ref: ${txnRef}`,
+    ``,
+    `⚡ Activation: ${activationStatus}`,
+    client?.phone ? `📲 Client notified via WhatsApp.` : `⚠️ No phone — WhatsApp not sent.`,
+  ].join("\n");
 }
 
 // ── Domain availability check (DNS + TLD list) ────────────────────────────────
@@ -842,11 +1219,32 @@ async function cmdShareInvoice(data: { email?: string; invoiceId?: string }, soc
   ].join("\n");
 }
 
-// ── CMD: AI Issue Diagnosis ───────────────────────────────────────────────────
+// ── CMD: AI Issue Diagnosis (with smart auto-routing to real actions) ─────────
 async function cmdFixIssue(issueDesc: string, context: { email?: string; domain?: string }): Promise<string> {
   if (!issueDesc) return "❌ Issue describe karo. Example: *fix issue client ka email nahi aa raha domain.com*";
 
-  // Get client/service context
+  const lower = issueDesc.toLowerCase();
+  const identifier = context.domain || context.email || "";
+
+  // Smart routing: detect issue keywords → call real action directly
+  if (/\bssl\b|certificate|https.*error|ssl.*expire|ssl.*install/.test(lower)) {
+    const domain = context.domain || issueDesc.match(/([a-zA-Z0-9-]+\.[a-zA-Z]{2,})/)?.[1] || "";
+    if (domain) return cmdSslInstall(domain);
+  }
+  if (/\b404\b|permalink|htaccess|page.*not.*found|wordpress.*error|wp.*fix/.test(lower)) {
+    if (identifier) return cmdWpFix404(identifier);
+  }
+  if (/password.*forgot|password.*reset|cant.*login.*cpanel|cpanel.*login.*fail/.test(lower)) {
+    if (identifier) return cmdResetPassword(identifier);
+  }
+  if (/disk.*full|storage.*full|disk.*limit|no.*space|quota.*exceed/.test(lower)) {
+    if (identifier) return cmdDiskUsage(identifier);
+  }
+  if (/backup.*needed|backup.*lo|create.*backup/.test(lower)) {
+    if (identifier) return cmdCreateBackup(identifier);
+  }
+
+  // Fallback: Gemini AI text advice
   let contextStr = "";
   if (context.email || context.domain) {
     const client = context.email ? await findClient(context.email) : null;
@@ -877,7 +1275,6 @@ Format your response EXACTLY as:
 
   try {
     const aiResp = await askGemini(prompt);
-
     const adminPart = aiResp.match(/--- ADMIN SUMMARY ---\n([\s\S]*?)(?=--- CLIENT STEPS ---|$)/)?.[1]?.trim() || "";
     const stepsPart = aiResp.match(/--- CLIENT STEPS ---\n([\s\S]*?)(?=--- WHATSAPP MESSAGE ---|$)/)?.[1]?.trim() || "";
     const waPart = aiResp.match(/--- WHATSAPP MESSAGE ---\n([\s\S]*?)$/)?.[1]?.trim() || "";
@@ -1407,6 +1804,34 @@ function cmdHelp(): string {
     `  • _fix issue email nahi aa raha kalahost.com_`,
     `  • _client ka cpanel login nahi ho raha_`,
     ``,
+    `🔒 *SSL Certificate*`,
+    `  • _ssl install karo kalahost.com_`,
+    `  • _ssl lagao kalahost.com_`,
+    ``,
+    `🔧 *WordPress 404 Fix*`,
+    `  • _wp fix 404 kalahost.com_`,
+    `  • _wordpress permalink error fix karo_`,
+    ``,
+    `🔑 *cPanel Password Reset*`,
+    `  • _password reset karo kalahost.com NewPass@123_`,
+    `  • _password badlo ali@email.com auto_ (auto-generate)`,
+    ``,
+    `🌐 *Site Check (Up/Down)*`,
+    `  • _site check karo kalahost.com_`,
+    `  • _check kalahost.com up hai ya down_`,
+    ``,
+    `📦 *Backup*`,
+    `  • _backup karo kalahost.com_`,
+    `  • _backup lo ali@email.com_`,
+    ``,
+    `💾 *Disk Usage*`,
+    `  • _disk usage dekho kalahost.com_`,
+    `  • _disk kitna use ho raha kalahost.com_`,
+    ``,
+    `✅ *Mark Invoice Paid*`,
+    `  • _invoice paid mark karo NOE-02341_`,
+    `  • _payment received ali@email.com_`,
+    ``,
     `💬 *Messaging*`,
     `  • _send message ali@email.com Your service is ready!_`,
     ``,
@@ -1609,6 +2034,71 @@ async function executeIntent(intent: string, params: Record<string, string>, adm
 
       case "share_invoice":
         return await cmdShareInvoice(params, sock, adminJid);
+
+      case "ssl_install": {
+        if (!params.domain) {
+          setConv(adminJid, { intent, collected: params, missing: ["domain"], ts: Date.now() });
+          return "🔒 Kis domain par SSL install karein? Domain name batao:";
+        }
+        return await cmdSslInstall(params.domain);
+      }
+
+      case "wp_fix_404": {
+        const id = params.domain || params.email || "";
+        if (!id) {
+          setConv(adminJid, { intent, collected: params, missing: ["domain"], ts: Date.now() });
+          return "🔧 Kis website ka WordPress 404 fix karein? Domain ya email batao:";
+        }
+        return await cmdWpFix404(id);
+      }
+
+      case "reset_password": {
+        const id = params.domain || params.email || "";
+        if (!id) {
+          setConv(adminJid, { intent, collected: params, missing: ["domain"], ts: Date.now() });
+          return "🔑 Kis account ka password reset karein? Domain ya email batao:";
+        }
+        if (!params.password) {
+          setConv(adminJid, { intent, collected: { ...params, domain: id }, missing: ["password"], ts: Date.now() });
+          return `🔑 *${id}* ke liye naya password batao (ya *auto* likh dein aur main generate kar deta hun):`;
+        }
+        const newPass = params.password?.toLowerCase() === "auto" ? undefined : params.password;
+        return await cmdResetPassword(id, newPass);
+      }
+
+      case "site_check": {
+        if (!params.domain) {
+          setConv(adminJid, { intent, collected: params, missing: ["domain"], ts: Date.now() });
+          return "🌐 Kaun sa domain check karein? Domain name batao:";
+        }
+        return await cmdSiteCheck(params.domain);
+      }
+
+      case "create_backup": {
+        const id = params.domain || params.email || "";
+        if (!id) {
+          setConv(adminJid, { intent, collected: params, missing: ["domain"], ts: Date.now() });
+          return "📦 Kis account ka backup banayein? Domain ya email batao:";
+        }
+        return await cmdCreateBackup(id);
+      }
+
+      case "disk_usage": {
+        const id = params.domain || params.email || "";
+        if (!id) {
+          setConv(adminJid, { intent, collected: params, missing: ["domain"], ts: Date.now() });
+          return "💾 Kis account ki disk usage dekhein? Domain ya email batao:";
+        }
+        return await cmdDiskUsage(id);
+      }
+
+      case "mark_paid": {
+        if (!params.invoiceId && !params.email) {
+          setConv(adminJid, { intent, collected: params, missing: ["invoiceId"], ts: Date.now() });
+          return "🧾 Invoice number (e.g. NOE-02341) ya client email batao jis ka invoice paid mark karein:";
+        }
+        return await cmdMarkPaid(params);
+      }
 
       case "fix_issue": {
         if (!params.issueDesc) {
