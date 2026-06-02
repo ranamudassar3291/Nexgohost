@@ -2958,121 +2958,34 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
             )}
           </div>
 
-          {/* ── Inline auth gate for guests ── */}
-          {!isLoggedIn && !verifyEmailStep && (
+          {/* ── Auth gate for guests — redirect to /login or /register ── */}
+          {!isLoggedIn && (
             <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-              <div className="px-5 py-4 border-b border-gray-100">
-                <h3 className="font-bold text-gray-900 flex items-center gap-2 text-[15px]">
-                  {authMode === "login" ? <UserIcon size={15} style={{ color: P }} /> : <UserPlus size={15} style={{ color: P }} />}
-                  {authMode === "login" ? "Sign in to complete your order" : "Create an account to continue"}
-                </h3>
-                <p className="text-[12px] text-gray-500 mt-0.5">Your plan is saved — just one quick step.</p>
-              </div>
-              <div className="flex border-b border-gray-100">
-                <button onClick={() => { setAuthMode("login"); setAuthError(""); }}
-                  className="flex-1 py-2.5 text-[13px] font-semibold transition-colors"
-                  style={authMode === "login" ? { color: P, borderBottom: `2px solid ${P}`, background: `${P}07` } : { color: "#6B7280" }}>
-                  Sign In
-                </button>
-                <button onClick={() => { setAuthMode("register"); setAuthError(""); }}
-                  className="flex-1 py-2.5 text-[13px] font-semibold transition-colors"
-                  style={authMode === "register" ? { color: P, borderBottom: `2px solid ${P}`, background: `${P}07` } : { color: "#6B7280" }}>
-                  Create Account
-                </button>
+              <div className="px-5 py-5 border-b border-gray-100 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ background: `linear-gradient(135deg, ${P}18 0%, #8B5CF618 100%)` }}>
+                  <Lock size={18} style={{ color: P }} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900 text-[15px]">One last step</h3>
+                  <p className="text-[12px] text-gray-500 mt-0.5">Sign in or create an account to place your order. Your selections are saved.</p>
+                </div>
               </div>
               <div className="p-5 space-y-3">
-                {authMode === "register" && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[11px] text-gray-500 mb-1 block">First Name *</label>
-                      <input value={authFirstName} onChange={e => setAuthFirstName(e.target.value)} placeholder="John"
-                        className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-[13px] focus:outline-none"
-                        onFocus={e => { e.currentTarget.style.borderColor = P; }} onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }} />
-                    </div>
-                    <div>
-                      <label className="text-[11px] text-gray-500 mb-1 block">Last Name</label>
-                      <input value={authLastName} onChange={e => setAuthLastName(e.target.value)} placeholder="Doe"
-                        className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-[13px] focus:outline-none"
-                        onFocus={e => { e.currentTarget.style.borderColor = P; }} onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }} />
-                    </div>
-                  </div>
-                )}
-                <div>
-                  <label className="text-[11px] text-gray-500 mb-1 block">Email Address *</label>
-                  <input type="email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} placeholder="you@example.com"
-                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-[13px] focus:outline-none"
-                    onFocus={e => { e.currentTarget.style.borderColor = P; }} onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }} />
-                </div>
-                {authMode === "register" && (
-                  <div>
-                    <label className="text-[11px] text-gray-500 mb-1 block">Phone (optional)</label>
-                    <input type="tel" value={authPhone} onChange={e => setAuthPhone(e.target.value)} placeholder="+1 555 000 0000"
-                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-[13px] focus:outline-none"
-                      onFocus={e => { e.currentTarget.style.borderColor = P; }} onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }} />
-                  </div>
-                )}
-                <div>
-                  <label className="text-[11px] text-gray-500 mb-1 block">Password *</label>
-                  <div className="relative">
-                    <input type={authShowPass ? "text" : "password"} value={authPassword} onChange={e => setAuthPassword(e.target.value)}
-                      onKeyDown={e => e.key === "Enter" && handleInlineAuth()}
-                      placeholder="••••••••"
-                      className="w-full px-3 py-2.5 pr-10 border border-gray-200 rounded-xl text-[13px] focus:outline-none"
-                      onFocus={e => { e.currentTarget.style.borderColor = P; }} onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }} />
-                    <button type="button" onClick={() => setAuthShowPass(v => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                      {authShowPass ? <EyeOff size={15} /> : <Eye size={15} />}
-                    </button>
-                  </div>
-                </div>
-                {authError && (
-                  <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-[12px] text-red-600">
-                    <AlertCircle size={13} className="shrink-0 mt-0.5" /> {authError}
-                  </div>
-                )}
-                <button onClick={handleInlineAuth} disabled={authLoading}
-                  className="w-full h-12 rounded-xl text-white font-bold text-[14px] flex items-center justify-center gap-2 transition-all disabled:opacity-60"
-                  style={{ background: `linear-gradient(135deg, ${P} 0%, #8B5CF6 100%)`, boxShadow: authLoading ? "none" : `0 6px 24px ${P}40` }}>
-                  {authLoading
-                    ? <><Loader2 size={16} className="animate-spin" /> Please wait…</>
-                    : authMode === "login"
-                      ? <><Lock size={15} /> Sign In & Continue</>
-                      : <><UserPlus size={15} /> Create Account & Continue</>
-                  }
-                </button>
-                <p className="text-center text-[11px] text-gray-400">
+                <a href={`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`}
+                  className="w-full h-12 rounded-xl text-white font-bold text-[14px] flex items-center justify-center gap-2 transition-all hover:brightness-110 active:scale-[0.99]"
+                  style={{ background: `linear-gradient(135deg, ${P} 0%, #8B5CF6 100%)`, boxShadow: `0 6px 24px ${P}40` }}>
+                  <UserIcon size={15} /> Sign In
+                </a>
+                <a href={`/register?next=${encodeURIComponent(window.location.pathname + window.location.search)}`}
+                  className="w-full h-12 rounded-xl font-bold text-[14px] flex items-center justify-center gap-2 transition-all border-2 hover:bg-gray-50"
+                  style={{ color: P, borderColor: P }}>
+                  <UserPlus size={15} /> Create Account
+                </a>
+                <p className="text-center text-[11px] text-gray-400 pt-1">
                   <Lock size={9} className="inline mr-1 text-green-500" />
-                  Your selections are saved. {authMode === "login" ? "Sign in" : "Registration"} won't reset them.
+                  Your plan selection will be restored after sign in.
                 </p>
-              </div>
-            </div>
-          )}
-          {!isLoggedIn && verifyEmailStep && (
-            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm p-5">
-              <h3 className="font-bold text-gray-900 text-[15px]">Verify email code</h3>
-              <p className="text-[12px] text-gray-500 mt-0.5">We sent a code to {authEmail || "your email"}.</p>
-              <div className="mt-4">
-                <label className="text-[11px] text-gray-500 mb-1 block">6-digit code</label>
-                <input value={verifyCode} onChange={e => setVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  placeholder="000000" maxLength={6}
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-[13px] tracking-[0.35em] text-center focus:outline-none"
-                  onFocus={e => { e.currentTarget.style.borderColor = P; }} onBlur={e => { e.currentTarget.style.borderColor = "#E5E7EB"; }} />
-              </div>
-              {authError && (
-                <div className="mt-3 flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-[12px] text-red-600">
-                  <AlertCircle size={13} className="shrink-0 mt-0.5" /> {authError}
-                </div>
-              )}
-              <div className="mt-4 space-y-3">
-                <button onClick={handleVerifyEmail} disabled={verifyLoading || verifyCode.length !== 6}
-                  className="w-full h-12 rounded-xl text-white font-bold text-[14px] flex items-center justify-center gap-2 transition-all disabled:opacity-60"
-                  style={{ background: `linear-gradient(135deg, ${P} 0%, #8B5CF6 100%)`, boxShadow: verifyLoading ? "none" : `0 6px 24px ${P}40` }}>
-                  {verifyLoading ? <Loader2 size={16} className="animate-spin" /> : <MailCheck size={15} />}
-                  Verify & Continue
-                </button>
-                <button type="button" onClick={() => { setVerifyEmailStep(false); setAuthError(""); }} className="w-full text-[12px] text-gray-500 hover:text-gray-700">
-                  Back to login
-                </button>
               </div>
             </div>
           )}

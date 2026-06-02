@@ -865,6 +865,13 @@ async function runStartupMigrations() {
       "ALTER TABLE users ADD COLUMN IF NOT EXISTS billing_currency TEXT",
       "ALTER TABLE users ADD COLUMN IF NOT EXISTS stack_user_id TEXT",
       "ALTER TABLE users ADD COLUMN IF NOT EXISTS can_migrate BOOLEAN DEFAULT false",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS address1 TEXT",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS city TEXT",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS state TEXT",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS post_code TEXT",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN DEFAULT false",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_otp TEXT",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_otp_expires_at TIMESTAMP",
     ];
     for (const stmt of userCols) {
       await db.execute(sql.raw(stmt));

@@ -58,7 +58,8 @@ async function generateUsername(firstName: string): Promise<string> {
 
 router.post("/auth/register", async (req, res) => {
   try {
-    const { firstName, lastName, email, password, company, phone, captchaToken, country, billingCurrency } = req.body;
+    const { firstName, lastName, email, password, company, phone, captchaToken, country, billingCurrency,
+            username: reqUsername, address1, city, state, postCode } = req.body;
     if (!firstName || !email || !password) {
       res.status(400).json({ error: "Validation error", message: "First name, email, and password are required" }); return;
     }
@@ -88,7 +89,9 @@ router.post("/auth/register", async (req, res) => {
 
     const { refCode } = req.body;
 
-    const autoUsername = await generateUsername(firstName);
+    const autoUsername = reqUsername
+      ? reqUsername.toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 20) || await generateUsername(firstName)
+      : await generateUsername(firstName);
 
     const [user] = await db.insert(usersTable).values({
       firstName, lastName: lastName || null, email: normalizedEmail, passwordHash,
@@ -100,6 +103,10 @@ router.post("/auth/register", async (req, res) => {
       username: autoUsername,
       ...(country         ? { country }         : {}),
       ...(billingCurrency ? { billingCurrency }  : {}),
+      ...(address1        ? { address1 }         : {}),
+      ...(city            ? { city }             : {}),
+      ...(state           ? { state }            : {}),
+      ...(postCode        ? { postCode }         : {}),
     } as any).returning();
 
     if (verificationRequired && code) {
@@ -875,6 +882,49 @@ router.put("/auth/change-username", authenticate, async (req: AuthRequest, res) 
     console.error("[AUTH] change-username error:", err.message);
     res.status(500).json({ error: "Server error" });
   }
+});
+
+// ── Phone OTP: Send code ──────────────────────────────────────────────────────
+router.post("/auth/send-phone-otp", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const { phone } = req.body;
+    if (!phone) { res.status(400).json({ error: "Phone number is required" }); return; }
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await db.execute(sql.raw(`UPDATE users SET phone_otp='${otp}', phone_otp_expires_at='${expiresAt.toISOString()}', phone='${phone.replace(/'/g, "")}' WHERE id='${userId}'`));
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+    // Send OTP via WhatsApp/SMS to phone + email fallback
+    try {
+      const { sendToClientPhone } = await import("../lib/whatsapp.js") as any;
+      await sendToClientPhone(phone, `🔐 *Your phone verification code is: ${otp}*\n\nThis code expires in 10 minutes. Do not share it with anyone.\n\n_Noehost Security_`, "otp");
+    } catch { /* fallback: send via email */ }
+    // Always send via email as backup
+    try {
+      const { emailVerificationCode } = await import("./email.js") as any;
+      await emailVerificationCode(user.email, user.firstName, otp, { clientId: userId });
+    } catch { /* non-fatal */ }
+    console.log(`[AUTH] Phone OTP sent to ${phone} for user ${userId}: ${otp}`);
+    res.json({ success: true, message: "Verification code sent to your phone" });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Failed to send OTP" }); }
+});
+
+// ── Phone OTP: Verify code ────────────────────────────────────────────────────
+router.post("/auth/verify-phone-otp", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const { code } = req.body;
+    if (!code) { res.status(400).json({ error: "Code is required" }); return; }
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+    const stored = (user as any).phone_otp;
+    const expiresAt = (user as any).phone_otp_expires_at;
+    if (!stored || stored !== code.trim()) { res.status(400).json({ error: "Invalid verification code" }); return; }
+    if (expiresAt && new Date() > new Date(expiresAt)) { res.status(400).json({ error: "Code has expired. Please request a new one." }); return; }
+    await db.execute(sql.raw(`UPDATE users SET phone_verified=true, phone_otp=NULL, phone_otp_expires_at=NULL WHERE id='${userId}'`));
+    res.json({ success: true, message: "Phone number verified successfully" });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Failed to verify OTP" }); }
 });
 
 // ── Admin: Impersonate a client (Login as Client) ────────────────────────────
