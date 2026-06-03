@@ -1206,15 +1206,6 @@ export default function OrderFlow() {
               <ArrowLeft size={13} /> Change option
             </button>
 
-            <div className="bg-[#faf8ff] border border-[#e8e0ff] rounded-xl p-4 mb-4">
-              <p className="text-[12px] text-[#6B46C1] font-semibold mb-1">Point your domain to Noehost</p>
-              <p className="text-[12px] text-gray-500">Update your domain's nameservers to:</p>
-              <div className="mt-2 space-y-1 font-mono text-[12px] text-gray-700">
-                <p className="bg-white rounded px-3 py-1.5 border border-gray-200">ns1.noehost.com</p>
-                <p className="bg-white rounded px-3 py-1.5 border border-gray-200">ns2.noehost.com</p>
-              </div>
-            </div>
-
             <div className="mb-4">
               <label className="block text-[13px] font-semibold text-gray-700 mb-1.5">Your Domain Name</label>
               <div className="relative">

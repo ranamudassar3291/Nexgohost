@@ -896,12 +896,6 @@ export default function Checkout() {
                       </div>
                     </div>
                   )}
-                  {isManual && (
-                    <div className="flex gap-2 p-3 rounded-xl border border-amber-500/20 bg-amber-500/[0.06] text-xs">
-                      <AlertCircle size={13} className="text-amber-500 shrink-0 mt-0.5" />
-                      <p className="text-muted-foreground">Submit your payment proof after placing the order. Service activates within 24 hours of admin verification.</p>
-                    </div>
-                  )}
                 </div>
               </div>
 

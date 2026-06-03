@@ -3105,23 +3105,13 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
                         </div>
                       )}
 
-                      {/* Warning: manual review required */}
+                      {/* Payment method notice */}
                       {(() => {
                         const selPm = (paymentMethods as any[]).find((p: any) => p.id === paymentMethodId);
                         if (!selPm) return null;
                         const isManualPm = ["bank_transfer","jazzcash","easypaisa","manual","crypto","paypal"].includes(selPm.type);
                         const isAutoPm = selPm.type === "safepay" || selPm.type === "stripe";
-                        if (isManualPm) return (
-                          <div className="flex gap-2.5 p-3.5 rounded-xl border border-orange-200 bg-orange-50 text-sm mt-1">
-                            <AlertCircle size={15} className="text-orange-500 shrink-0 mt-0.5"/>
-                            <div>
-                              <p className="text-[12px] font-bold text-orange-700">Manual Review Required</p>
-                              <p className="text-[11px] text-orange-600 mt-0.5">
-                                After placing your order, send payment using the details above. Your service activates within 24 hours once our team verifies payment.
-                              </p>
-                            </div>
-                          </div>
-                        );
+                        if (isManualPm) return null;
                         if (isAutoPm) return (
                           <div className="flex gap-2.5 p-3.5 rounded-xl border border-green-200 bg-green-50 text-sm mt-1">
                             <Zap size={15} className="text-green-600 shrink-0 mt-0.5"/>
