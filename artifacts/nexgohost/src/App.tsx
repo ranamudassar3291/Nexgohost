@@ -7,6 +7,9 @@ import { AuthProvider } from "@/context/AuthProvider";
 import { CurrencyProvider } from "@/context/CurrencyProvider";
 import { ContentProvider } from "@/context/ContentContext";
 import { CartProvider } from "@/context/CartContext";
+import { UnifiedCartProvider } from "@/context/UnifiedCartContext";
+import UnifiedCart from "@/pages/client/UnifiedCart";
+import UnifiedCartAdd from "@/pages/client/UnifiedCartAdd";
 import { ThemeProvider } from "@/context/ThemeProvider";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouteLogger } from "@/hooks/use-route-logger";
@@ -165,7 +168,7 @@ function HelpPage({ children }: { children: React.ReactNode }) {
           <a href="/login" className="flex items-center gap-2 font-bold text-primary text-lg">Noehost</a>
           <div className="flex gap-3">
             <a href="/login" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Sign In</a>
-            <a href="/dashboard/orders/new" className="text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors">Get Hosting</a>
+            <a href="/" className="text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors">Get Hosting</a>
           </div>
         </div>
       </header>
@@ -651,21 +654,11 @@ function RouterRoot() {
       <Route path="/order/vps" component={OrderByVpsId}/>
       {/* /order/:slug — slug-based clean short link (AFTER specific /order/* routes) */}
       <Route path="/order/:slug" component={OrderBySlug}/>
-      <Route path="/dashboard/orders/new" component={ClientOrdersNewRedirect}/>
-      {/* /cart — backward compat, redirects to unified checkout */}
-      <Route path="/cart" component={CartRedirect}/>
+      {/* /cart — Unified cart & checkout (Hostinger-style) */}
+      <Route path="/cart/add/:packageId"><UnifiedCartAdd /></Route>
+      <Route path="/cart"><UnifiedCart /></Route>
 
-      <Route path="/dashboard/orders/new">
-        {() => {
-          const sp     = new URLSearchParams(window.location.search);
-          const pid    = sp.get("plan_id") ?? "";
-          const vpsId  = sp.get("vps_id")  ?? "";
-          const gid    = sp.get("group_id") ?? "";
-          if (vpsId)  return <CheckoutLayout allowGuest><NewOrder initialVpsPlanId={vpsId} /></CheckoutLayout>;
-          if (gid)    return <CheckoutLayout allowGuest><NewOrder initialGroupId={gid} /></CheckoutLayout>;
-          return <CheckoutLayout allowGuest><NewOrder initialPackageId={pid || undefined} /></CheckoutLayout>;
-        }}
-      </Route>
+      <Route path="/dashboard/orders/new"><Redirect to="/" /></Route>
       <Route path="/dashboard/orders">
         <ClientPage><ClientOrders /></ClientPage>
       </Route>
@@ -838,7 +831,9 @@ function App() {
                 <AuthProvider>
                   <CurrencyProvider>
                     <CartProvider>
-                      <RouterRoot />
+                      <UnifiedCartProvider>
+                        <RouterRoot />
+                      </UnifiedCartProvider>
                     </CartProvider>
                   </CurrencyProvider>
                 </AuthProvider>

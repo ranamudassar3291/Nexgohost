@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { cartItemsTable, guestCartItemsTable } from "@workspace/db/schema";
+import { cartItemsTable, guestCartItemsTable, hostingPlansTable, vpsPlansTable, affiliatesTable, promoCodesTable } from "@workspace/db/schema";
 import { authenticate, type AuthRequest } from "../lib/auth.js";
 import { eq, and } from "drizzle-orm";
 import { sql } from "drizzle-orm";
@@ -342,6 +342,87 @@ router.delete("/guest/domain-session/:token", async (req, res) => {
     const { token } = req.params;
     await db.execute(sql`DELETE FROM website_cart_sessions WHERE session_token = ${token}`);
     return res.json({ ok: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── GET /api/cart/lookup/:packageId — detect product type + return pricing ──
+// Used by /cart/add/:packageId to resolve plan details before adding to cart
+router.get("/cart/lookup/:packageId", async (req, res) => {
+  try {
+    const { packageId } = req.params;
+    const { type } = req.query as { type?: string };
+
+    if (type === "vps" || !type) {
+      const [vpsPlan] = await db.select().from(vpsPlansTable)
+        .where(eq(vpsPlansTable.id, packageId)).limit(1);
+      if (vpsPlan && (type === "vps" || !type)) {
+        if (vpsPlan.isActive) {
+          return res.json({
+            packageId: vpsPlan.id,
+            packageName: vpsPlan.name,
+            productType: "vps",
+            monthlyPrice: Number(vpsPlan.price),
+            quarterlyPrice: (vpsPlan as any).quarterlyPrice ? Number((vpsPlan as any).quarterlyPrice) : null,
+            semiannualPrice: (vpsPlan as any).semiannualPrice ? Number((vpsPlan as any).semiannualPrice) : null,
+            yearlyPrice: (vpsPlan as any).yearlyPrice ? Number((vpsPlan as any).yearlyPrice) : null,
+            description: vpsPlan.description ?? null,
+            features: (vpsPlan as any).features ?? [],
+          });
+        }
+      }
+    }
+
+    // Default: check hosting plans
+    const [plan] = await db.select().from(hostingPlansTable)
+      .where(eq(hostingPlansTable.id, packageId)).limit(1);
+    if (plan && plan.isActive) {
+      return res.json({
+        packageId: plan.id,
+        packageName: plan.name,
+        productType: "hosting",
+        monthlyPrice: Number(plan.price),
+        quarterlyPrice: (plan as any).quarterlyPrice ? Number((plan as any).quarterlyPrice) : null,
+        semiannualPrice: (plan as any).semiannualPrice ? Number((plan as any).semiannualPrice) : null,
+        yearlyPrice: plan.yearlyPrice ? Number(plan.yearlyPrice) : null,
+        renewalPrice: (plan as any).renewalPrice ? Number((plan as any).renewalPrice) : null,
+        renewalEnabled: plan.renewalEnabled ?? true,
+        freeDomainEnabled: plan.freeDomainEnabled ?? false,
+        freeDomainTlds: plan.freeDomainTlds ?? [],
+        diskSpace: plan.diskSpace ?? null,
+        bandwidth: plan.bandwidth ?? null,
+        emailAccounts: plan.emailAccounts ?? null,
+        features: plan.features ?? [],
+        description: plan.description ?? null,
+      });
+    }
+
+    return res.status(404).json({ error: "Product not found or not active" });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── POST /api/cart/validate-referral — validate affiliate referral code ──────
+router.post("/cart/validate-referral", async (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code?.trim()) return res.status(400).json({ error: "Code is required" });
+
+    const [affiliate] = await db.select({
+      id: affiliatesTable.id,
+      referralCode: affiliatesTable.referralCode,
+      userId: affiliatesTable.userId,
+    }).from(affiliatesTable)
+      .where(eq(affiliatesTable.referralCode, code.trim().toUpperCase()))
+      .limit(1);
+
+    if (!affiliate || (affiliate as any).status === "suspended") {
+      return res.status(404).json({ error: "Invalid referral code" });
+    }
+
+    return res.json({ valid: true, code: affiliate.referralCode, affiliateId: affiliate.id });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

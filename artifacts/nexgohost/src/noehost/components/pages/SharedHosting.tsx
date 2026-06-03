@@ -117,8 +117,8 @@ const SharedHosting: React.FC = () => {
   const handleOrderNow = (plan: any) => {
     const planId = plan._planId || plan._raw?.id || plan.id || '';
     window.location.href = planId
-      ? `/dashboard/orders/new?plan_id=${planId}`
-      : '/dashboard/orders/new';
+      ? `/cart/add/${planId}`
+      : '/';
   };
 
   const renderLink = (to: string, children: React.ReactNode, className: string) => {

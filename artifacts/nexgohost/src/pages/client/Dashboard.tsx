@@ -971,7 +971,7 @@ export default function ClientDashboard() {
         const s2 = setupProgress.step2;
         const steps = [
           { label: "Claim Your Domain", icon: Globe, done: s1, desc: s1 ? setupProgress.primaryDomain ?? "Your domain is ready." : "Register a domain to get started.", cta: !s1 ? { label: "Get a Domain", href: "/dashboard/domains" } : null, locked: false },
-          { label: "Launch Hosting",   icon: Server, done: s2, desc: s2 ? "Hosting is live and running."       : "Connect your domain to a hosting plan.",   cta: !s2 ? { label: "Get Hosting", href: "/dashboard/orders/new" } : null, locked: !s1 },
+          { label: "Launch Hosting",   icon: Server, done: s2, desc: s2 ? "Hosting is live and running."       : "Connect your domain to a hosting plan.",   cta: !s2 ? { label: "Get Hosting", href: "/shared-hosting" } : null, locked: !s1 },
           { label: "You're Live",      icon: Rocket, done: false, desc: "Complete the steps above to go live.", cta: null, locked: !s1 || !s2 },
         ];
         return (

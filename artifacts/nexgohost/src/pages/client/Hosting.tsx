@@ -340,7 +340,7 @@ export default function ClientHosting() {
         </div>
         {services.length > 0 && (
           <button
-            onClick={() => setLocation("/dashboard/orders/new")}
+            onClick={() => setLocation("/shared-hosting")}
             className="flex items-center gap-2 h-9 px-4 rounded-xl text-sm font-semibold text-white shadow-md hover:opacity-90 transition-opacity shrink-0"
             style={{ background: BRAND_GRADIENT }}
           >
@@ -376,7 +376,7 @@ export default function ClientHosting() {
               You don't have any active plans yet. Pick one below and be live in minutes — no technical experience required.
             </p>
             <button
-              onClick={() => setLocation("/dashboard/orders/new")}
+              onClick={() => setLocation("/shared-hosting")}
               className="mt-6 flex items-center gap-2 h-11 px-6 rounded-xl text-sm font-bold text-white shadow-lg hover:opacity-90 transition-opacity"
               style={{ background: BRAND_GRADIENT }}
             >
@@ -428,7 +428,7 @@ export default function ClientHosting() {
                       ))}
                     </div>
                     <button
-                      onClick={() => setLocation(`/dashboard/orders/new?plan=${plan.id}`)}
+                      onClick={() => setLocation(`/cart/add/${plan.id}`)}
                       className="mt-auto w-full h-9 rounded-xl text-sm font-semibold transition-all"
                       style={i === 1
                         ? { background: BRAND_GRADIENT, color: "white" }
