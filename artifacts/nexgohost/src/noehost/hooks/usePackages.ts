@@ -107,6 +107,38 @@ export function useVpsPlans() {
   return { plans, loading, refetch: fetch$ };
 }
 
+export interface EmailPlan {
+  id: string;
+  name: string;
+  max_storage_gb: number;
+  max_mailboxes: number;
+  price: number;
+  yearly_price: number | null;
+  is_popular: boolean;
+}
+
+export function useEmailPackages() {
+  const [plans, setPlans] = useState<EmailPlan[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetch$ = useCallback(() => {
+    setLoading(true);
+    cachedFetch<EmailPlan>('email-packages', '/api/email-packages')
+      .then(setPlans)
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { fetch$(); }, [fetch$]);
+
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => { if (e.key === PRICING_BROADCAST_KEY) fetch$(); };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [fetch$]);
+
+  return { plans, loading, refetch: fetch$ };
+}
+
 export function useDomainPricing() {
   const [extensions, setExtensions] = useState<DomainExtension[]>([]);
   const [loading, setLoading] = useState(true);
