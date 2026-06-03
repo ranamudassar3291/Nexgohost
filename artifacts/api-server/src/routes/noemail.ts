@@ -5,7 +5,7 @@ import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { randomUUID } from "crypto";
 import { serversTable, invoicesTable } from "@workspace/db/schema";
 import { decryptField } from "../lib/fieldCrypto.js";
-import { twentyiCreateHosting } from "../lib/twenty-i.js";
+import { twentyiCreateHosting, twentyiGetPackages } from "../lib/twenty-i.js";
 import axios from "axios";
 
 const router = Router();
@@ -487,6 +487,37 @@ router.post("/my/email-orders/:id/webmail-login", authenticate, async (req: Auth
   }
 });
 
+// ── Admin: Email Servers (for provisioning selector) ─────────────────────────
+
+// GET /api/admin/email-servers — list all 20i servers for provisioning
+router.get("/admin/email-servers", authenticate, requireAdmin, async (_req, res) => {
+  try {
+    const rows = await db.execute(sql`
+      SELECT id, name, hostname, status, api_connected, server_ip, connection_status_detail
+      FROM servers WHERE type = '20i' ORDER BY name
+    `);
+    res.json(rows.rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/admin/email-servers/:id/packages — fetch 20i package list from specific server
+router.get("/admin/email-servers/:id/packages", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const srvRows = await db.execute(sql`SELECT * FROM servers WHERE id = ${req.params.id} AND type = '20i'`);
+    const server = (srvRows.rows as any[])[0];
+    if (!server) return res.status(404).json({ error: "Server not found" });
+
+    const apiKey = decryptApiKey(server);
+    const pkgs = await twentyiGetPackages(apiKey);
+    res.json(pkgs);
+  } catch (err: any) {
+    console.error("[EMAIL-SERVERS] packages fetch failed:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Admin: Orders overview ────────────────────────────────────────────────────
 
 // GET /api/admin/email-orders
@@ -517,11 +548,12 @@ router.put("/admin/email-orders/:id/status", authenticate, requireAdmin, async (
   }
 });
 
-// POST /api/admin/email-orders/:id/provision  — one-click provisioning
+// POST /api/admin/email-orders/:id/provision  — provision with specific server + package
 router.post("/admin/email-orders/:id/provision", authenticate, requireAdmin, async (req, res) => {
   const { id } = req.params;
+  // Admin can specify which server + which 20i package to use
+  const { server_id, package_id } = req.body as { server_id?: string; package_id?: string };
   try {
-    // Load order + package details (including client email for 20i logging)
     const orderRows = await db.execute(sql`
       SELECT eo.*, ep.name as package_name, ep.remote_package_id, ep.max_storage_gb, ep.max_mailboxes,
              u.email as client_email
@@ -533,54 +565,65 @@ router.post("/admin/email-orders/:id/provision", authenticate, requireAdmin, asy
     const order = (orderRows.rows as any[])[0];
     if (!order) return res.status(404).json({ error: "Order not found" });
 
-    // Already fully provisioned — nothing to do
     if (order.status === "active" && order.remote_hosting_id) {
       return res.json({ ok: true, provisioned: false, message: "Order is already active and provisioned." });
     }
 
-    const server = await get20iServer();
+    // Resolve which server to use: admin-selected > default 20i server
+    let server: any = null;
+    if (server_id) {
+      const srvRows = await db.execute(sql`SELECT * FROM servers WHERE id = ${server_id} AND type = '20i'`);
+      server = (srvRows.rows as any[])[0] ?? null;
+      if (!server) return res.status(404).json({ error: "Selected server not found or not a 20i server." });
+    } else {
+      server = await get20iServer();
+    }
 
-    // ── Path A: 20i is not configured → manual activation ────────────────────
+    // ── Path A: no server → manual activation ─────────────────────────────
     if (!server) {
       await db.execute(sql`UPDATE email_orders SET status = 'active', updated_at = NOW() WHERE id = ${id}`);
       return res.json({ ok: true, provisioned: false, message: "No 20i server configured — order activated manually." });
     }
 
-    // ── Path B: package has no 20i template → manual activation ─────────────
-    if (!order.remote_package_id) {
+    // Resolve which 20i package to use: admin-selected > order's linked package
+    const remotePackageId = package_id || order.remote_package_id;
+
+    // ── Path B: no package template → manual activation ──────────────────
+    if (!remotePackageId) {
       await db.execute(sql`UPDATE email_orders SET status = 'active', updated_at = NOW() WHERE id = ${id}`);
-      return res.json({ ok: true, provisioned: false, message: "Package has no 20i template linked — order activated manually." });
+      return res.json({ ok: true, provisioned: false, message: "No 20i package selected — order activated manually." });
     }
 
-    // ── Path C: attempt 20i provisioning via the proven addWeb flow ──────────
+    // ── Path C: 20i provisioning ──────────────────────────────────────────
     const apiKey = decryptApiKey(server);
+    console.log(`[EMAIL PROVISION] server=${server.name} package=${remotePackageId} domain=${order.domain_name}`);
+
     const result = await twentyiCreateHosting(
       apiKey,
       order.domain_name,
       order.client_email ?? "",
-      order.remote_package_id,
+      remotePackageId,
     );
 
     if (!result.siteId) {
-      // Provisioning attempted but 20i returned no site ID — surface the error
-      const errMsg = result.error ?? "20i returned no site ID after package creation";
-      console.error("[EMAIL PROVISION] 20i returned no siteId:", errMsg);
+      const errMsg = result.error ?? "20i returned no site ID";
+      console.error("[EMAIL PROVISION] no siteId:", errMsg);
       return res.status(422).json({ error: `20i provisioning failed: ${errMsg}` });
     }
 
-    // Success — persist the remote hosting ID and activate the order
     await db.execute(sql`
       UPDATE email_orders
       SET status = 'active', remote_hosting_id = ${result.siteId}, updated_at = NOW()
       WHERE id = ${id}
     `);
 
-    console.log(`[EMAIL PROVISION] order=${id} domain=${order.domain_name} siteId=${result.siteId}`);
+    console.log(`[EMAIL PROVISION] ✓ order=${id} siteId=${result.siteId}`);
     res.json({
       ok: true,
       provisioned: true,
       remote_hosting_id: result.siteId,
-      message: `20i hosting package created (ID: ${result.siteId}). Order is now active.`,
+      server_name: server.name,
+      message: `Provisioned on ${server.name} (20i ID: ${result.siteId}). Order is now active.`,
     });
   } catch (err: any) {
     console.error("[EMAIL PROVISION]", err.message);
