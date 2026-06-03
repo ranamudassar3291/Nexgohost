@@ -1,2 +1,3 @@
 - [API Server Startup](api-server-startup.md) — artifact workflow always times out; use `Start application` with direct npx tsx command instead
 - [Google OAuth encrypted secret](google-oauth.md) — client_secret stored encrypted in DB; getGoogleSettings() must call decryptField(); admin settings GET must fall back to env vars
+- [20i API Base64 auth](twenty-i-auth.md) — Bearer token must be Base64-encoded general key; plain hex key always 401; proxy via VPS required since GCP IPs blocked

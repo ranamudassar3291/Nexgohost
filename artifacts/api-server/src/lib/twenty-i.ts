@@ -122,46 +122,65 @@ export function extractGeneralKey(cleanKey: string): string {
   return cleanKey;
 }
 
-// Returns the key that should be used given a specific format label.
+// Returns the raw key variant for a given format label (before Base64 encoding).
 export function getKeyForFormat(cleanKey: string, fmt: "before_plus" | "after_plus" | "full"): string {
   if (fmt === "full") return cleanKey;
   const plusIdx = cleanKey.indexOf("+");
-  if (plusIdx < 0) return cleanKey; // No "+" — only one option
+  if (plusIdx < 0) return cleanKey;
   if (fmt === "before_plus") return cleanKey.substring(0, plusIdx);
   return cleanKey.substring(plusIdx + 1);
 }
 
-// Module-level cache: the detected working key format per API key (keyed by last4 chars).
-const _workingKeyFormatCache: Record<string, "before_plus" | "after_plus" | "full"> = {};
-
-export function getCachedKeyFormat(cleanKey: string): "before_plus" | "after_plus" | "full" {
-  const last4 = cleanKey.slice(-4);
-  return _workingKeyFormatCache[last4] ?? "before_plus";
+// Base64-encode a raw key for use as a Bearer token (20i API requirement per their docs).
+export function encodeKeyForBearer(rawKey: string): string {
+  return Buffer.from(rawKey).toString("base64");
 }
 
-export function setCachedKeyFormat(cleanKey: string, fmt: "before_plus" | "after_plus" | "full") {
+// Module-level cache: the detected working key format per API key (keyed by last4 chars).
+// Format now includes b64_ prefix variants.
+type KeyFormat = "before_plus_b64" | "after_plus_b64" | "before_plus" | "after_plus" | "full";
+const _workingKeyFormatCache: Record<string, KeyFormat> = {};
+
+export function getCachedKeyFormat(cleanKey: string): KeyFormat {
+  const last4 = cleanKey.slice(-4);
+  return _workingKeyFormatCache[last4] ?? "before_plus_b64";
+}
+
+export function setCachedKeyFormat(cleanKey: string, fmt: KeyFormat) {
   const last4 = cleanKey.slice(-4);
   _workingKeyFormatCache[last4] = fmt;
 }
 
 // Try to auto-detect the correct key format by attempting a real API call with each variant.
+// 20i API requires the General Key to be Base64-encoded as the Bearer token.
 // Returns { format, authKey } for the first format that gives a non-401 response.
-// A 404 from a reseller/* endpoint still counts as "auth passed" because 401 = definitely rejected.
 export async function twentyiFindWorkingKeyFormat(
   rawKey: string,
   proxyUrl?: string | null,
-): Promise<{ format: "before_plus" | "after_plus" | "full"; authKey: string; status: number }> {
+): Promise<{ format: KeyFormat; authKey: string; status: number }> {
   const cleanKey = sanitiseKey(rawKey);
-  const formats: Array<"before_plus" | "after_plus" | "full"> = ["before_plus", "after_plus", "full"];
   const testPath = "/reseller/*/packageTypes";
 
-  for (const fmt of formats) {
-    const keyVariant = getKeyForFormat(cleanKey, fmt);
-    const authHeader = `Bearer ${keyVariant}`;
+  // Try Base64-encoded variants first (correct per 20i docs), then raw fallbacks
+  const candidates: Array<{ fmt: KeyFormat; bearer: string }> = [];
+  const plusIdx = cleanKey.indexOf("+");
 
+  if (plusIdx > 0) {
+    const before = cleanKey.substring(0, plusIdx);
+    const after = cleanKey.substring(plusIdx + 1);
+    candidates.push({ fmt: "before_plus_b64", bearer: encodeKeyForBearer(before) });
+    candidates.push({ fmt: "after_plus_b64", bearer: encodeKeyForBearer(after) });
+    candidates.push({ fmt: "before_plus", bearer: before });
+    candidates.push({ fmt: "after_plus", bearer: after });
+  } else {
+    candidates.push({ fmt: "before_plus_b64", bearer: encodeKeyForBearer(cleanKey) });
+    candidates.push({ fmt: "before_plus", bearer: cleanKey });
+  }
+
+  for (const { fmt, bearer } of candidates) {
+    const authHeader = `Bearer ${bearer}`;
     try {
-      const maskedDetect = authHeader.replace(/Bearer\s+\S+/i, "Bearer ****");
-      console.log(`[20i-KEY-DETECT] format=${fmt} keyLen=${keyVariant.length} Authorization="${maskedDetect}" User-Agent="Nexgohost-Platform/1.0"`);
+      console.log(`[20i-KEY-DETECT] format=${fmt} bearerLen=${bearer.length} User-Agent="Nexgohost-Platform/1.0"`);
       const cfg: AxiosRequestConfig = {
         method: "GET",
         url: `${BASE_URL}${testPath}`,
@@ -179,30 +198,28 @@ export async function twentyiFindWorkingKeyFormat(
         cfg.proxy = false;
       }
       const res = await axios(cfg);
-      console.log(`[20i-KEY-DETECT] format=${fmt} keyLen=${keyVariant.length} → HTTP ${res.status}`);
+      console.log(`[20i-KEY-DETECT] format=${fmt} → HTTP ${res.status}`);
 
-      // 200 = fully working; 404 from reseller/* = auth passed (account might have no packages);
-      // 403 = IP not yet whitelisted or permission denied but key might be correct;
-      // 401 = key format definitively WRONG — skip this format.
       if (res.status !== 401) {
         console.log(`[20i-KEY-DETECT] ✓ Working format: "${fmt}" (HTTP ${res.status})`);
-        return { format: fmt, authKey: keyVariant, status: res.status };
+        return { format: fmt, authKey: bearer, status: res.status };
       }
-      console.log(`[20i-KEY-DETECT] ✗ Format "${fmt}" rejected (401 — wrong key)`);
+      console.log(`[20i-KEY-DETECT] ✗ Format "${fmt}" rejected (401)`);
     } catch (err: any) {
       console.warn(`[20i-KEY-DETECT] format=${fmt} network error: ${err.message}`);
     }
   }
 
-  // Fallback: before_plus (original behavior)
-  const fallback = getKeyForFormat(cleanKey, "before_plus");
-  return { format: "before_plus", authKey: fallback, status: 0 };
+  // Fallback: Base64 of before_plus
+  const fallbackRaw = plusIdx > 0 ? cleanKey.substring(0, plusIdx) : cleanKey;
+  return { format: "before_plus_b64", authKey: encodeKeyForBearer(fallbackRaw), status: 0 };
 }
 
 export function buildAuthHeader(apiKey: string): string {
   const clean = sanitiseKey(apiKey);
   const generalKey = extractGeneralKey(clean);
-  return `Bearer ${generalKey}`;
+  // 20i API requires Base64-encoded General Key as Bearer token (per official API docs)
+  return `Bearer ${encodeKeyForBearer(generalKey)}`;
 }
 
 // ─── Outbound IP detection ────────────────────────────────────────────────────
@@ -262,9 +279,9 @@ async function request<T = any>(
   // ── Auth header construction ──────────────────────────────────────────────────
   // Step 1: Sanitise — strip invisible chars, preserve + separator
   const cleanKey = sanitiseKey(apiKey);
-  // Step 2: Pick the key portion — always before_plus (proven correct for both path types)
+  // Step 2: Pick the key portion — always before_plus, then Base64-encode (20i API requirement)
   const selectedKey = selectKeyForPath(cleanKey);
-  const authorizationHeader = `Bearer ${selectedKey}`;
+  const authorizationHeader = `Bearer ${encodeKeyForBearer(selectedKey)}`;
 
   const url = `${resolveBaseUrl()}${path}`;
   const proxyUrl = resolveProxyUrl();
@@ -323,7 +340,7 @@ async function request<T = any>(
     const altKey = selectAlternativeKeyForPath(cleanKey, selectedKey);
     if (altKey && altKey !== selectedKey) {
       console.log(`[20i] Retrying with alt key (len=${altKey.length}) — primary got HTTP ${res.status}`);
-      const retryRes = await makeRequest(`Bearer ${altKey}`, body);
+      const retryRes = await makeRequest(`Bearer ${encodeKeyForBearer(altKey)}`, body);
       const retryPreview = JSON.stringify(retryRes.data).substring(0, 300);
       console.log(`[20i] <- Retry HTTP ${retryRes.status}  body=${retryPreview}`);
       // Accept the retry result if it's better (200/4xx other than 401)
