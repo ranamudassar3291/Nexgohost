@@ -32,6 +32,8 @@ export default function SafepayReturn() {
 
   const [phase, setPhase] = useState<"polling" | "activating" | "paid" | "pending" | "error">("polling");
   const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [invoiceType, setInvoiceType] = useState("");
+  const [emailOrderId, setEmailOrderId] = useState("");
   const [currentStep, setCurrentStep] = useState(0);
   const pollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -48,6 +50,8 @@ export default function SafepayReturn() {
         const data = await apiFetch(`/api/my/invoices/${invoiceId}`);
         if (cancelled) return;
         setInvoiceNumber(data.invoiceNumber ?? "");
+        setInvoiceType(data.invoiceType ?? "");
+        setEmailOrderId(data.orderId ?? "");
         if (data.status === "paid") {
           setPhase("activating");
           runActivationAnimation();
@@ -178,6 +182,7 @@ export default function SafepayReturn() {
 
   // ─── PAID: full success ───────────────────────────────────────────────────
   if (phase === "paid") {
+    const isEmailHosting = invoiceType === "email_hosting";
     return (
       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
         className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -187,15 +192,28 @@ export default function SafepayReturn() {
             <CheckCircle size={48} className="text-green-400" />
           </motion.div>
           <div>
-            <h1 className="text-3xl font-bold text-foreground mb-2">Hosting Activated!</h1>
+            <h1 className="text-3xl font-bold text-foreground mb-2">
+              {isEmailHosting ? "Payment Confirmed!" : "Hosting Activated!"}
+            </h1>
             {invoiceNumber && <p className="text-muted-foreground text-sm mb-1">Invoice #{invoiceNumber}</p>}
             <p className="text-muted-foreground">
-              Your hosting account is live. DNS records are configured and your cPanel is ready to access.
-              A confirmation email has been sent to you.
+              {isEmailHosting
+                ? "Your email hosting payment is confirmed. Complete the DNS setup to activate your business email."
+                : "Your hosting account is live. DNS records are configured and your cPanel is ready to access. A confirmation email has been sent to you."}
             </p>
           </div>
           <div className="grid grid-cols-3 gap-3 py-2">
-            {[
+            {isEmailHosting ? [
+              { icon: CheckCircle, label: "Payment", sub: "Confirmed" },
+              { icon: Mail,        label: "Email",   sub: "Pending DNS" },
+              { icon: Globe,       label: "DNS",     sub: "Setup Next" },
+            ].map(({ icon: Icon, label, sub }) => (
+              <div key={label} className="p-3 rounded-xl bg-green-500/5 border border-green-500/20 text-center">
+                <Icon size={20} className="text-green-400 mx-auto mb-1" />
+                <p className="text-xs font-semibold text-foreground">{label}</p>
+                <p className="text-[10px] text-green-400">{sub}</p>
+              </div>
+            )) : [
               { icon: Server, label: "Hosting", sub: "Active" },
               { icon: Globe,  label: "DNS",     sub: "Configured" },
               { icon: Mail,   label: "Email",   sub: "Ready" },
@@ -209,7 +227,14 @@ export default function SafepayReturn() {
           </div>
           <div className="flex gap-3">
             <Button onClick={goToDashboard} variant="outline" className="flex-1">Dashboard</Button>
-            <Button onClick={goToInvoice} className="flex-1 bg-primary hover:bg-primary/90">View Invoice</Button>
+            {isEmailHosting && emailOrderId ? (
+              <Button onClick={() => setLocation(`/checkout/email-hosting/dns/${emailOrderId}`)}
+                className="flex-1 bg-primary hover:bg-primary/90">
+                Set Up DNS →
+              </Button>
+            ) : (
+              <Button onClick={goToInvoice} className="flex-1 bg-primary hover:bg-primary/90">View Invoice</Button>
+            )}
           </div>
         </div>
       </motion.div>

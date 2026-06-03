@@ -148,6 +148,7 @@ export default function EmailHostingCheckout() {
 
     setSubmitting(true);
     try {
+      // Step 1: Create the order + invoice
       const order = await apiFetch(`${API}/my/email-orders`, {
         method: "POST",
         body: JSON.stringify({
@@ -156,8 +157,29 @@ export default function EmailHostingCheckout() {
           billing_cycle: billing,
         }),
       });
-      toast({ title: "Order placed! Configuring DNS…" });
-      navigate(`/checkout/email-hosting/dns/${order.id}`);
+
+      // Step 2: Try Safepay payment initiation
+      try {
+        const pay = await apiFetch(`${API}/payments/safepay/initiate`, {
+          method: "POST",
+          body: JSON.stringify({ invoiceId: order.invoiceId }),
+        });
+        if (pay?.checkoutUrl) {
+          toast({ title: "Redirecting to payment…" });
+          window.location.href = pay.checkoutUrl;
+          return;
+        }
+      } catch (payErr: any) {
+        // Safepay not configured (503) or other error — fall through to billing
+        console.warn("[EMAIL CHECKOUT] Safepay unavailable:", payErr?.message);
+      }
+
+      // Step 3: Fallback — go to billing so client can pay manually
+      toast({
+        title: "Order placed!",
+        description: `Invoice ${order.invoiceNumber} created. Complete payment to activate.`,
+      });
+      navigate(`/dashboard/billing`);
     } catch (e: any) {
       toast({ title: "Order failed", description: e.message, variant: "destructive" });
     } finally {

@@ -201,6 +201,21 @@ export async function processInvoicePaid(
         activatedDomain = order.domain ?? order.itemName ?? "";
         await activateDomainOrder(order, updated.invoiceNumber);
       }
+
+      // Email hosting orders — not in ordersTable, identified by invoiceType
+      if ((updated as any).invoiceType === "email_hosting" && updated.orderId) {
+        try {
+          await db.execute(sql`
+            UPDATE email_orders
+            SET status = 'pending_dns', updated_at = NOW()
+            WHERE id = ${updated.orderId} AND status = 'pending_payment'
+          `);
+          activatedServiceType = "Email Hosting";
+          console.log(`[ACTIVATE] Email order ${updated.orderId} → pending_dns (invoice ${updated.invoiceNumber})`);
+        } catch (emailErr) {
+          console.error("[ACTIVATE] Email order activation error:", emailErr);
+        }
+      }
     } catch (e) { console.error("[ACTIVATE] provision error (non-fatal):", e); }
 
     // 5b. Update invoice dueDate to billing-cycle renewal date, and update service nextDueDate for renewals

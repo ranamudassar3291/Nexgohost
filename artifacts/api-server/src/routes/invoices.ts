@@ -132,6 +132,7 @@ function formatInvoice(i: any, clientName?: string) {
     invoiceNumber: i.invoiceNumber ?? i.invoice_number,
     clientId: i.clientId ?? i.client_id,
     clientName: clientName || "",
+    orderId: i.orderId ?? i.order_id ?? null,
     amount: Number(i.amount ?? 0),
     tax: Number(i.tax ?? 0),
     total: Number(i.total ?? 0),
@@ -463,6 +464,15 @@ router.post("/admin/invoices/:id/mark-paid", authenticate, requireAdmin, async (
         }
       } else if (order?.type === "domain") {
         await activateDomainOrder(order, updated.invoiceNumber);
+      }
+      // Email hosting orders — not in ordersTable, identified by invoiceType
+      if ((updated as any).invoiceType === "email_hosting" && updated.orderId) {
+        await db.execute(sql`
+          UPDATE email_orders
+          SET status = 'pending_dns', updated_at = NOW()
+          WHERE id = ${updated.orderId} AND status = 'pending_payment'
+        `);
+        console.log(`[EMAIL ORDER] ${updated.orderId} → pending_dns on invoice ${updated.invoiceNumber}`);
       }
     } catch (e) { console.error("[PROVISION] mark-paid downstream error:", e); /* non-blocking */ }
 

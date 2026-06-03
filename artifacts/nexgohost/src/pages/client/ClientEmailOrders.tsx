@@ -47,6 +47,13 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; co
     bg: "#ECFDF5",
     border: "#6EE7B7",
   },
+  pending_payment: {
+    label: "Awaiting Payment",
+    icon: Clock,
+    color: "#7C3AED",
+    bg: "#F5F3FF",
+    border: "#DDD6FE",
+  },
   pending_dns: {
     label: "Pending DNS",
     icon: Clock,
@@ -145,9 +152,13 @@ export default function ClientEmailOrders() {
                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.06 }}
                 className="group rounded-2xl p-5 flex items-center gap-4 cursor-pointer transition-all hover:shadow-md"
                 style={{ background: "#fff", border: "1px solid #E5E7EB" }}
-                onClick={() => order.status === "pending_dns"
-                  ? navigate(`/checkout/email-hosting/dns/${order.id}`)
-                  : navigate(`/dashboard/noemail/manage/${order.id}`)}>
+                onClick={() =>
+                  order.status === "pending_payment"
+                    ? navigate(`/dashboard/billing`)
+                    : order.status === "pending_dns"
+                      ? navigate(`/checkout/email-hosting/dns/${order.id}`)
+                      : navigate(`/dashboard/noemail/manage/${order.id}`)
+                }>
 
                 {/* Domain icon */}
                 <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -160,6 +171,11 @@ export default function ClientEmailOrders() {
                   <div className="flex items-center gap-3 flex-wrap">
                     <span className="font-bold text-gray-900">{order.domain_name}</span>
                     <StatusBadge status={order.status} />
+                    {order.status === "pending_payment" && (
+                      <span className="text-xs text-violet-600 font-medium flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5" /> Payment required
+                      </span>
+                    )}
                     {order.status === "pending_dns" && (
                       <span className="text-xs text-amber-600 font-medium flex items-center gap-1">
                         <AlertCircle className="w-3.5 h-3.5" /> Configure DNS to activate
@@ -197,6 +213,18 @@ export default function ClientEmailOrders() {
             );
           })}
         </div>
+      )}
+
+      {/* Pending Payment helper */}
+      {orders.some(o => o.status === "pending_payment") && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+          className="flex items-start gap-3 p-4 rounded-xl"
+          style={{ background: "#F5F3FF", border: "1px solid #DDD6FE" }}>
+          <AlertCircle className="w-4 h-4 text-violet-500 flex-shrink-0 mt-0.5" />
+          <div className="text-xs text-violet-800">
+            <strong>Payment required:</strong> Complete your payment to activate email hosting. Click the order above to go to your invoice.
+          </div>
+        </motion.div>
       )}
 
       {/* Pending DNS helper */}

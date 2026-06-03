@@ -3,11 +3,19 @@ import { db } from "@workspace/db";
 import { sql, eq, desc } from "drizzle-orm";
 import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { randomUUID } from "crypto";
-import { serversTable } from "@workspace/db/schema";
+import { serversTable, invoicesTable } from "@workspace/db/schema";
 import { decryptField } from "../lib/fieldCrypto.js";
 import axios from "axios";
 
 const router = Router();
+
+// ── Invoice helper (mirrors invoices.ts — uses shared sequence) ───────────────
+async function genEmailInvoiceNumber(): Promise<string> {
+  await db.execute(sql`CREATE SEQUENCE IF NOT EXISTS inv_seq START WITH 2001`);
+  const result = await db.execute(sql`SELECT nextval('inv_seq') AS seq`);
+  const seq = Number((result.rows[0] as any).seq);
+  return `NOE-${String(seq).padStart(5, "0")}`;
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -226,18 +234,43 @@ router.post("/my/email-orders", authenticate, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: "Invalid package_id." });
     }
 
-    // ── Transaction: order row + storage quota must succeed together ───────────
+    // ── Transaction: order row + storage quota + invoice ─────────────────────
+    const invoiceNumber = await genEmailInvoiceNumber();
+    const invoiceId = randomUUID();
+    const dueDate = new Date(); dueDate.setDate(dueDate.getDate() + 7);
+    const invoiceItems = [{
+      description: `${pkg.name} — Business Email Hosting (${cycle})`,
+      quantity: 1,
+      unitPrice: safePrice,
+      total: safePrice,
+    }];
+
     await db.execute(sql`BEGIN`);
     try {
       await db.execute(sql`
         INSERT INTO email_orders (id, user_id, package_id, domain_name, billing_cycle, amount_paid, status, created_at, updated_at)
-        VALUES (${safeId}, ${safeUserId}, ${safePkgId}, ${safeDomain}, ${safeCycle}, ${safePrice}, 'pending_dns', NOW(), NOW())
+        VALUES (${safeId}, ${safeUserId}, ${safePkgId}, ${safeDomain}, ${safeCycle}, ${safePrice}, 'pending_payment', NOW(), NOW())
       `);
       await db.execute(sql`
         INSERT INTO email_storage_usage (order_id, used_mb, quota_mb, updated_at)
         VALUES (${id}, 0, ${(pkg.max_storage_gb ?? 10) * 1024}, NOW())
         ON CONFLICT (order_id) DO NOTHING
       `);
+      // Create the invoice linked to this email order
+      await db.insert(invoicesTable).values({
+        id: invoiceId,
+        invoiceNumber,
+        clientId: safeUserId,
+        orderId: safeId,           // points to email_orders.id
+        invoiceType: "email_hosting",
+        amount: String(safePrice),
+        tax: "0",
+        total: String(safePrice),
+        baseCurrencyAmount: String(safePrice),
+        status: "unpaid",
+        dueDate,
+        items: invoiceItems,
+      });
       await db.execute(sql`COMMIT`);
     } catch (txErr: any) {
       await db.execute(sql`ROLLBACK`).catch(() => {});
@@ -245,7 +278,15 @@ router.post("/my/email-orders", authenticate, async (req: AuthRequest, res) => {
       throw txErr;
     }
 
-    res.json({ id, domain_name: domainClean, status: "pending_dns", package: pkg });
+    res.json({
+      id,
+      invoiceId,
+      invoiceNumber,
+      amount: safePrice,
+      domain_name: domainClean,
+      status: "pending_payment",
+      package: pkg,
+    });
   } catch (err: any) {
     console.error("[EMAIL ORDER CREATE] raw error:", err);
     res.status(500).json({ error: "We were unable to place your order. Please try again or contact support." });

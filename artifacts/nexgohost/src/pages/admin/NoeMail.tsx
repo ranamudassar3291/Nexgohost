@@ -64,6 +64,7 @@ const EMPTY_FORM: Partial<EmailPackage> = {
 
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  pending_payment: "bg-violet-500/10 text-violet-400 border-violet-500/20",
   pending_dns: "bg-amber-500/10 text-amber-400 border-amber-500/20",
   suspended: "bg-red-500/10 text-red-400 border-red-500/20",
 };
@@ -156,8 +157,8 @@ export default function NoeMail() {
   const stats = [
     { label: "Total Packages", value: packages.length, icon: Package, color: "text-indigo-400" },
     { label: "Active Orders", value: orders.filter(o => o.status === "active").length, icon: CheckCircle, color: "text-emerald-400" },
+    { label: "Awaiting Payment", value: orders.filter(o => o.status === "pending_payment").length, icon: Globe, color: "text-violet-400" },
     { label: "Pending DNS", value: orders.filter(o => o.status === "pending_dns").length, icon: Globe, color: "text-amber-400" },
-    { label: "Total Mailboxes", value: orders.reduce((s, o) => s + Number(o.mailbox_count ?? 0), 0), icon: Mail, color: "text-violet-400" },
   ];
 
   return (
@@ -307,6 +308,7 @@ export default function NoeMail() {
                           className="text-xs bg-muted border border-border rounded px-2 py-1 text-foreground"
                           value={order.status}
                           onChange={e => handleStatusChange(order.id, e.target.value)}>
+                          <option value="pending_payment">Awaiting Payment</option>
                           <option value="pending_dns">Pending DNS</option>
                           <option value="active">Active</option>
                           <option value="suspended">Suspended</option>
