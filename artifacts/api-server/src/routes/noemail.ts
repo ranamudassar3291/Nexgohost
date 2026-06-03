@@ -217,12 +217,12 @@ router.post("/my/email-orders", authenticate, async (req: AuthRequest, res) => {
     // Coerce to guaranteed-non-undefined types before SQL binding
     const safeId: string         = String(id);
     const safeUserId: string     = String(userId);
-    const safePkgId: number      = parseInt(String(package_id), 10);
+    const safePkgId: string      = String(package_id);   // UUID text — must NOT be parseInt'd
     const safeDomain: string     = String(domainClean);
     const safeCycle: string      = String(cycle);
     const safePrice: number      = price;
 
-    if (isNaN(safePkgId)) {
+    if (!safePkgId) {
       return res.status(400).json({ error: "Invalid package_id." });
     }
 

@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   LogOut, Menu, X, ShieldAlert, ChevronDown, ChevronRight,
   AlertTriangle, Plus, Settings, HelpCircle,
-  ExternalLink, BookOpen, Server, Globe,
+  ExternalLink, BookOpen, Server, Globe, Mail,
   LayoutDashboard, ShoppingCart, Receipt, TrendingUp,
   ShieldCheck, Users2, Ticket, User, Share2, Wallet,
   BarChart3, Zap, MessageSquare, CreditCard, Activity,
@@ -154,6 +154,7 @@ const CLIENT_SIDEBAR_GROUPS = [
     items: [
       { name: "My Hosting",      href: "/dashboard/hosting",   icon: Server },
       { name: "My Domains",      href: "/dashboard/domains",   icon: Globe  },
+      { name: "Business Email",  href: "/dashboard/email",     icon: Mail   },
       { name: "Domain Reseller", href: "/dashboard/reseller",  icon: Globe  },
     ],
   },
