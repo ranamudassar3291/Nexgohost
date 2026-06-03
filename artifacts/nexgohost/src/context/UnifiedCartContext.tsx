@@ -39,6 +39,7 @@ interface ReferralResult {
   valid: boolean;
   code: string;
   affiliateId: string;
+  discountPercent: number;
 }
 
 interface UnifiedCartContextType {
@@ -191,8 +192,11 @@ export function UnifiedCartProvider({ children }: { children: ReactNode }) {
     setCouponError("");
     setCouponLoading(true);
     try {
-      const p = new URLSearchParams({ code: code.trim(), amount: String(amount), serviceType: "hosting", billingCycle: "monthly" });
-      const res = await fetch(`/api/promo-codes/validate?${p}`);
+      const res = await fetch("/api/cart/validate-coupon", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: code.trim(), amount }),
+      });
       const data = await res.json();
       if (!res.ok || !data.valid) { setCouponError(data.error || "Invalid promo code"); return; }
       setCoupon(data);
@@ -228,8 +232,10 @@ export function UnifiedCartProvider({ children }: { children: ReactNode }) {
 
   const getTotal = useCallback(() => {
     const sub = getSubtotal();
-    return Math.max(0, sub - (coupon?.discountAmount ?? 0));
-  }, [getSubtotal, coupon]);
+    const couponOff = coupon?.discountAmount ?? 0;
+    const referralOff = referral ? Math.round(sub * (referral.discountPercent / 100) * 100) / 100 : 0;
+    return Math.max(0, sub - couponOff - referralOff);
+  }, [getSubtotal, coupon, referral]);
 
   return (
     <Ctx.Provider value={{

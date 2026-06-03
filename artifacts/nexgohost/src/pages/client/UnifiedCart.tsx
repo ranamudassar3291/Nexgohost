@@ -247,64 +247,74 @@ export default function UnifiedCart() {
     finally { setAuthLoading(false); }
   }
 
-  // ── Place Order ────────────────────────────────────────────────────────────
+  // ── Place Order ── processes ALL cart items, one checkout call per item ────
   async function handlePlaceOrder() {
     if (items.length === 0) return;
     if (captchaRequired && !captchaToken) {
       toast({ title: "Please complete the security check", variant: "destructive" }); return;
     }
     setPlacing(true);
+    const pmObj = paymentMethods.find(p => p.id === selectedPm);
+    const invoiceIds: string[] = [];
+
     try {
-      const item = items[0];
-      const price = getItemPrice(item);
-      const domainForOrder = item.productType === "hosting" && item.domainAction === "register" && item.domainName ? item.domainName
-        : item.productType === "hosting" && item.domainAction === "transfer" && item.domainName ? item.domainName
-        : null;
+      for (let idx = 0; idx < items.length; idx++) {
+        const item = items[idx];
+        const domainForOrder = (item.productType === "hosting" && (item.domainAction === "register" || item.domainAction === "transfer") && item.domainName)
+          ? item.domainName : null;
 
-      let body: any = {
-        billingCycle: item.billingCycle,
-        billingPeriod: CYCLE_MONTHS[item.billingCycle],
-        promoCode: coupon ? couponInput : undefined,
-        paymentMethodId: selectedPm !== "none" && selectedPm !== "credits" ? selectedPm : undefined,
-        useCredits: selectedPm === "credits",
-        referralCode: referral?.code,
-        currencyCode: currency.code,
-        currencySymbol: currency.symbol,
-        currencyRate: currency.rate,
-        ...(captchaToken ? { captchaToken } : {}),
-      };
+        const body: Record<string, any> = {
+          billingCycle: item.billingCycle,
+          billingPeriod: CYCLE_MONTHS[item.billingCycle],
+          promoCode: coupon ? couponInput : undefined,
+          paymentMethodId: selectedPm !== "none" && selectedPm !== "credits" ? selectedPm : undefined,
+          useCredits: selectedPm === "credits",
+          referralCode: referral?.code,
+          currencyCode: currency.code,
+          currencySymbol: currency.symbol,
+          currencyRate: currency.rate,
+          ...(idx === 0 && captchaToken ? { captchaToken } : {}),
+        };
 
-      if (item.productType === "hosting") {
-        body.packageId = item.packageId;
-        body.domain = domainForOrder;
-        body.registerDomain = item.domainAction === "register" && item.domainName;
-        body.domainAmount = item.domainAction === "register" ? (item.domainPrice ?? 0) : 0;
-        body.domainPeriod = item.domainName?.toLowerCase().endsWith(".pk") ? 2 : 1;
-      } else if (item.productType === "vps") {
-        body.vpsPlanId = item.packageId;
-      } else if (item.productType === "email") {
-        body.emailPackageId = item.packageId;
-      }
+        if (item.productType === "hosting") {
+          body.packageId = item.packageId;
+          body.domain = domainForOrder;
+          body.registerDomain = item.domainAction === "register" && !!item.domainName;
+          body.domainAmount = item.domainAction === "register" ? (item.domainPrice ?? 0) : 0;
+          body.domainPeriod = item.domainName?.toLowerCase().endsWith(".pk") ? 2 : 1;
+        } else if (item.productType === "vps") {
+          body.vpsPlanId = item.packageId;
+        } else if (item.productType === "email") {
+          body.emailPackageId = item.packageId;
+        } else if (item.productType === "domain") {
+          body.domain = item.domainName;
+          body.registerDomain = true;
+          body.domainAmount = item.monthlyPrice;
+          body.domainPeriod = 1;
+        }
 
-      const data = await apiFetch("/api/checkout", { method: "POST", body: JSON.stringify(body) });
+        const data = await apiFetch("/api/checkout", { method: "POST", body: JSON.stringify(body) });
+        if (data.invoice?.id) invoiceIds.push(data.invoice.id);
 
-      const pmObj = paymentMethods.find(p => p.id === selectedPm);
-      if (pmObj?.type === "safepay" && data.invoice?.id) {
-        const spData = await apiFetch("/api/payments/safepay/initiate", {
-          method: "POST", body: JSON.stringify({ invoiceId: data.invoice.id }),
-        });
-        if (spData.checkoutUrl) { clearCart(); window.location.href = spData.checkoutUrl; return; }
-      }
-      if (pmObj?.type === "rapidgateway" && data.invoice?.id) {
-        const rgData = await apiFetch("/api/payments/rapidgateway/initiate", {
-          method: "POST", body: JSON.stringify({ invoiceId: data.invoice.id }),
-        });
-        if (rgData.checkoutUrl) { clearCart(); window.location.href = rgData.checkoutUrl; return; }
+        // For gateway payments, redirect immediately on first invoice (gateway handles the rest)
+        if (idx === 0 && pmObj?.type === "safepay" && data.invoice?.id) {
+          const spData = await apiFetch("/api/payments/safepay/initiate", {
+            method: "POST", body: JSON.stringify({ invoiceId: data.invoice.id }),
+          });
+          if (spData.checkoutUrl) { clearCart(); window.location.href = spData.checkoutUrl; return; }
+        }
+        if (idx === 0 && pmObj?.type === "rapidgateway" && data.invoice?.id) {
+          const rgData = await apiFetch("/api/payments/rapidgateway/initiate", {
+            method: "POST", body: JSON.stringify({ invoiceId: data.invoice.id }),
+          });
+          if (rgData.checkoutUrl) { clearCart(); window.location.href = rgData.checkoutUrl; return; }
+        }
       }
 
       clearCart();
-      setLocation(data.invoice?.id ? `/dashboard/invoices/${data.invoice.id}` : "/dashboard/billing");
-      toast({ title: "Order placed successfully!" });
+      const firstInvoice = invoiceIds[0];
+      setLocation(firstInvoice ? `/dashboard/invoices/${firstInvoice}` : "/dashboard/billing");
+      toast({ title: "Order placed successfully!", description: invoiceIds.length > 1 ? `${invoiceIds.length} orders created.` : undefined });
     } catch (err: any) {
       toast({ title: "Order failed", description: err.message, variant: "destructive" });
     } finally { setPlacing(false); }
@@ -737,6 +747,12 @@ export default function UnifiedCart() {
                   <div className="flex justify-between text-sm">
                     <span className="text-emerald-600 flex items-center gap-1"><Ticket size={12} /> Coupon ({coupon?.code})</span>
                     <span className="text-emerald-600 font-semibold">-{formatPrice(couponDiscount)}</span>
+                  </div>
+                )}
+                {referral && subtotal > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-emerald-600 flex items-center gap-1"><Gift size={12} /> Referral ({referral.code})</span>
+                    <span className="text-emerald-600 font-semibold">-{formatPrice(Math.round(subtotal * (referral.discountPercent / 100) * 100) / 100)}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-black text-base border-t border-gray-100 pt-2 mt-2">

@@ -414,15 +414,97 @@ router.post("/cart/validate-referral", async (req, res) => {
       id: affiliatesTable.id,
       referralCode: affiliatesTable.referralCode,
       userId: affiliatesTable.userId,
+      status: affiliatesTable.status,
     }).from(affiliatesTable)
       .where(eq(affiliatesTable.referralCode, code.trim().toUpperCase()))
       .limit(1);
 
-    if (!affiliate || (affiliate as any).status === "suspended") {
+    if (!affiliate || affiliate.status === "suspended") {
       return res.status(404).json({ error: "Invalid referral code" });
     }
 
-    return res.json({ valid: true, code: affiliate.referralCode, affiliateId: affiliate.id });
+    return res.json({
+      valid: true,
+      code: affiliate.referralCode,
+      affiliateId: affiliate.id,
+      discountPercent: 10,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── POST /api/cart/session — create or update a cart recovery session ───────
+// Maps to existing cart_sessions table (abandoned cart recovery schema).
+router.post("/cart/session", async (req, res) => {
+  try {
+    const { sessionId, items, subtotal } = req.body;
+    if (!sessionId) return res.status(400).json({ error: "sessionId is required" });
+    const token = req.headers.authorization?.replace("Bearer ", "") ?? null;
+    let userId = "anonymous";
+    if (token) {
+      try {
+        const { verifyToken } = await import("../lib/auth.js");
+        const payload = verifyToken(token);
+        userId = (payload as any).id ?? "anonymous";
+      } catch {}
+    }
+    const firstItem = Array.isArray(items) && items.length > 0 ? items[0] : null;
+    await db.execute(sql`
+      INSERT INTO cart_sessions (id, user_id, package_id, package_name, billing_cycle, completed, reminder_sent, abandoned_at)
+      VALUES (
+        ${sessionId}, ${userId},
+        ${firstItem?.packageId ?? null}, ${firstItem?.packageName ?? null},
+        ${firstItem?.billingCycle ?? "monthly"}, false, false, NOW()
+      )
+      ON CONFLICT (id) DO UPDATE SET
+        package_id   = EXCLUDED.package_id,
+        package_name = EXCLUDED.package_name,
+        billing_cycle = EXCLUDED.billing_cycle,
+        abandoned_at = NOW()
+    `);
+    return res.json({ ok: true, sessionId, itemCount: Array.isArray(items) ? items.length : 0, subtotal: subtotal ?? 0 });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── POST /api/cart/validate-coupon — validate promo code for unified cart ───
+// Thin wrapper: accepts { code, amount } and calls promo-codes validate logic
+router.post("/cart/validate-coupon", async (req, res) => {
+  try {
+    const { code, amount } = req.body;
+    if (!code?.trim()) return res.status(400).json({ error: "Code is required" });
+    const amountNum = Number(amount) || 0;
+    const [promo] = await db.select().from(promoCodesTable)
+      .where(eq(promoCodesTable.code, code.trim().toUpperCase()))
+      .limit(1);
+    if (!promo || !promo.isActive) {
+      return res.status(404).json({ error: "Invalid or expired promo code" });
+    }
+    if (promo.expiresAt && new Date(promo.expiresAt) < new Date()) {
+      return res.status(400).json({ error: "Promo code has expired" });
+    }
+    if (promo.maxUses && (promo.usedCount ?? 0) >= promo.maxUses) {
+      return res.status(400).json({ error: "Promo code usage limit reached" });
+    }
+    const discountType = (promo as any).discountType ?? "percent";
+    let discountAmount: number;
+    if (discountType === "fixed") {
+      discountAmount = Math.min(Number((promo as any).fixedAmount ?? 0), amountNum);
+    } else {
+      discountAmount = amountNum * (promo.discountPercent / 100);
+    }
+    const finalAmount = Math.max(0, amountNum - discountAmount);
+    return res.json({
+      valid: true,
+      code: promo.code,
+      discountType,
+      discountPercent: promo.discountPercent,
+      discountAmount: Number(discountAmount.toFixed(2)),
+      originalAmount: amountNum,
+      finalAmount: Number(finalAmount.toFixed(2)),
+    });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
