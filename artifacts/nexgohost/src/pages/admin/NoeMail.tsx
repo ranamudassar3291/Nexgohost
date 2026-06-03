@@ -4,7 +4,7 @@ import {
   Mail, Plus, Pencil, Trash2, Save, X, HardDrive, Users,
   DollarSign, Package, Loader2, CheckCircle, AlertCircle,
   Star, ToggleLeft, ToggleRight, Globe, RefreshCw, Eye, BarChart3,
-  ChevronDown, Server,
+  ChevronDown, Server, Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,6 +50,7 @@ interface EmailOrder {
   created_at: string;
   billing_cycle: string;
   amount_paid: number;
+  remote_hosting_id: string | null;
 }
 
 const EMPTY_FORM: Partial<EmailPackage> = {
@@ -82,6 +83,7 @@ export default function NoeMail() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [templates, setTemplates] = useState<{ id: string; name: string; storage_gb: number | null; max_mailboxes: number | null }[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [provisioningId, setProvisioningId] = useState<string | null>(null);
 
   const loadPackages = () =>
     apiFetch(`${API}/admin/email-packages`).then(setPackages).catch(() => {});
@@ -151,6 +153,29 @@ export default function NoeMail() {
       await loadOrders();
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
+    }
+  }
+
+  async function handleProvision(orderId: string) {
+    setProvisioningId(orderId);
+    try {
+      const result = await apiFetch(`${API}/admin/email-orders/${orderId}/provision`, { method: "POST" });
+      if (result.provisioned) {
+        toast({
+          title: "Order provisioned",
+          description: `20i package created (ID: ${result.remote_hosting_id}). Order is now active.`,
+        });
+      } else {
+        toast({
+          title: "Order activated",
+          description: result.message ?? "Order marked as active.",
+        });
+      }
+      await loadOrders();
+    } catch (e: any) {
+      toast({ title: "Provisioning failed", description: e.message, variant: "destructive" });
+    } finally {
+      setProvisioningId(null);
     }
   }
 
@@ -279,43 +304,70 @@ export default function NoeMail() {
               <table className="w-full text-sm">
                 <thead className="border-b border-border">
                   <tr className="text-left">
-                    {["Domain", "Client", "Package", "Billing", "Mailboxes", "Status", "Actions"].map(h => (
+                    {["Domain", "Client", "Package", "Billing", "Mailboxes", "Status", "Provision", "Change Status"].map(h => (
                       <th key={h} className="px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {orders.length === 0 && (
-                    <tr><td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">No email orders yet</td></tr>
+                    <tr><td colSpan={8} className="px-4 py-12 text-center text-muted-foreground">No email orders yet</td></tr>
                   )}
-                  {orders.map(order => (
-                    <tr key={order.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
-                      <td className="px-4 py-3 font-medium text-foreground">{order.domain_name}</td>
-                      <td className="px-4 py-3">
-                        <div className="text-foreground">{order.client_name}</div>
-                        <div className="text-xs text-muted-foreground">{order.client_email}</div>
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">{order.package_name}</td>
-                      <td className="px-4 py-3 capitalize text-muted-foreground">{order.billing_cycle}</td>
-                      <td className="px-4 py-3 text-center">{order.mailbox_count}</td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-1 rounded-full border font-medium ${STATUS_COLORS[order.status] ?? "bg-muted text-muted-foreground border-border"}`}>
-                          {order.status.replace("_", " ")}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <select
-                          className="text-xs bg-muted border border-border rounded px-2 py-1 text-foreground"
-                          value={order.status}
-                          onChange={e => handleStatusChange(order.id, e.target.value)}>
-                          <option value="pending_payment">Awaiting Payment</option>
-                          <option value="pending_dns">Pending DNS</option>
-                          <option value="active">Active</option>
-                          <option value="suspended">Suspended</option>
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
+                  {orders.map(order => {
+                    const isProvisioning = provisioningId === order.id;
+                    const isFullyProvisioned = order.status === "active" && !!order.remote_hosting_id;
+                    return (
+                      <tr key={order.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
+                        <td className="px-4 py-3 font-medium text-foreground">{order.domain_name}</td>
+                        <td className="px-4 py-3">
+                          <div className="text-foreground">{order.client_name}</div>
+                          <div className="text-xs text-muted-foreground">{order.client_email}</div>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">{order.package_name}</td>
+                        <td className="px-4 py-3 capitalize text-muted-foreground">{order.billing_cycle}</td>
+                        <td className="px-4 py-3 text-center">{order.mailbox_count}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-col gap-1">
+                            <span className={`text-xs px-2 py-1 rounded-full border font-medium w-fit ${STATUS_COLORS[order.status] ?? "bg-muted text-muted-foreground border-border"}`}>
+                              {order.status.replace(/_/g, " ")}
+                            </span>
+                            {order.remote_hosting_id && (
+                              <span className="text-[10px] text-emerald-400 flex items-center gap-1">
+                                <Server className="w-2.5 h-2.5" /> {order.remote_hosting_id.slice(0, 12)}…
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          {isFullyProvisioned ? (
+                            <span className="text-xs text-emerald-400 flex items-center gap-1.5 font-medium">
+                              <CheckCircle className="w-3.5 h-3.5" /> Provisioned
+                            </span>
+                          ) : (
+                            <Button
+                              size="sm"
+                              disabled={isProvisioning}
+                              onClick={() => handleProvision(order.id)}
+                              className="gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-7 px-3">
+                              {isProvisioning
+                                ? <><Loader2 className="w-3 h-3 animate-spin" /> Activating…</>
+                                : <><Zap className="w-3 h-3" /> Activate</>}
+                            </Button>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <select
+                            className="text-xs bg-muted border border-border rounded px-2 py-1 text-foreground"
+                            value={order.status}
+                            onChange={e => handleStatusChange(order.id, e.target.value)}>
+                            <option value="pending_dns">Pending DNS</option>
+                            <option value="active">Active</option>
+                            <option value="suspended">Suspended</option>
+                          </select>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

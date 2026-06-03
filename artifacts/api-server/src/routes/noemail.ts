@@ -5,6 +5,7 @@ import { authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { randomUUID } from "crypto";
 import { serversTable, invoicesTable } from "@workspace/db/schema";
 import { decryptField } from "../lib/fieldCrypto.js";
+import { twentyiCreateHosting } from "../lib/twenty-i.js";
 import axios from "axios";
 
 const router = Router();
@@ -512,6 +513,77 @@ router.put("/admin/email-orders/:id/status", authenticate, requireAdmin, async (
     await db.execute(sql`UPDATE email_orders SET status = ${status}, updated_at = NOW() WHERE id = ${req.params.id}`);
     res.json({ ok: true });
   } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/email-orders/:id/provision  — one-click provisioning
+router.post("/admin/email-orders/:id/provision", authenticate, requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  try {
+    // Load order + package details (including client email for 20i logging)
+    const orderRows = await db.execute(sql`
+      SELECT eo.*, ep.name as package_name, ep.remote_package_id, ep.max_storage_gb, ep.max_mailboxes,
+             u.email as client_email
+      FROM email_orders eo
+      LEFT JOIN admin_email_packages ep ON ep.id = eo.package_id
+      LEFT JOIN users u ON u.id = eo.user_id
+      WHERE eo.id = ${id}
+    `);
+    const order = (orderRows.rows as any[])[0];
+    if (!order) return res.status(404).json({ error: "Order not found" });
+
+    // Already fully provisioned — nothing to do
+    if (order.status === "active" && order.remote_hosting_id) {
+      return res.json({ ok: true, provisioned: false, message: "Order is already active and provisioned." });
+    }
+
+    const server = await get20iServer();
+
+    // ── Path A: 20i is not configured → manual activation ────────────────────
+    if (!server) {
+      await db.execute(sql`UPDATE email_orders SET status = 'active', updated_at = NOW() WHERE id = ${id}`);
+      return res.json({ ok: true, provisioned: false, message: "No 20i server configured — order activated manually." });
+    }
+
+    // ── Path B: package has no 20i template → manual activation ─────────────
+    if (!order.remote_package_id) {
+      await db.execute(sql`UPDATE email_orders SET status = 'active', updated_at = NOW() WHERE id = ${id}`);
+      return res.json({ ok: true, provisioned: false, message: "Package has no 20i template linked — order activated manually." });
+    }
+
+    // ── Path C: attempt 20i provisioning via the proven addWeb flow ──────────
+    const apiKey = decryptApiKey(server);
+    const result = await twentyiCreateHosting(
+      apiKey,
+      order.domain_name,
+      order.client_email ?? "",
+      order.remote_package_id,
+    );
+
+    if (!result.siteId) {
+      // Provisioning attempted but 20i returned no site ID — surface the error
+      const errMsg = result.error ?? "20i returned no site ID after package creation";
+      console.error("[EMAIL PROVISION] 20i returned no siteId:", errMsg);
+      return res.status(422).json({ error: `20i provisioning failed: ${errMsg}` });
+    }
+
+    // Success — persist the remote hosting ID and activate the order
+    await db.execute(sql`
+      UPDATE email_orders
+      SET status = 'active', remote_hosting_id = ${result.siteId}, updated_at = NOW()
+      WHERE id = ${id}
+    `);
+
+    console.log(`[EMAIL PROVISION] order=${id} domain=${order.domain_name} siteId=${result.siteId}`);
+    res.json({
+      ok: true,
+      provisioned: true,
+      remote_hosting_id: result.siteId,
+      message: `20i hosting package created (ID: ${result.siteId}). Order is now active.`,
+    });
+  } catch (err: any) {
+    console.error("[EMAIL PROVISION]", err.message);
     res.status(500).json({ error: err.message });
   }
 });
