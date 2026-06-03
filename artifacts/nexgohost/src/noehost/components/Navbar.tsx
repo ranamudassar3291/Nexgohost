@@ -322,24 +322,6 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
                   </div>
                   <div className="px-2 pb-3">
                     <Link
-                      to="/business-email"
-                      onClick={() => setServicesOpen(false)}
-                      className="flex items-start gap-4 px-3 py-3.5 rounded-xl hover:bg-white/5 transition-all group"
-                    >
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-emerald-500/10 text-emerald-400 group-hover:bg-emerald-500/20 transition-all">
-                        <Mail size={18} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="text-sm font-bold text-slate-200 group-hover:text-emerald-400 transition-colors">Business Email</span>
-                          <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">
-                            NEW
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-500 font-medium leading-snug">Professional email with your custom domain</p>
-                      </div>
-                    </Link>
-                    <Link
                       to="/n8n-hosting"
                       onClick={() => setServicesOpen(false)}
                       className="flex items-start gap-4 px-3 py-3.5 rounded-xl hover:bg-white/5 transition-all group"
@@ -596,22 +578,6 @@ const Navbar: React.FC<NavbarProps> = ({ user, setUser }) => {
             </button>
             {mobileServicesOpen && (
               <div className="mt-3 flex flex-col gap-1">
-                <Link
-                  to="/business-email"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-start gap-3 px-3 py-3 rounded-xl hover:bg-white/5 transition-all group"
-                >
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-emerald-500/10 text-emerald-400 group-hover:bg-emerald-500/20 transition-all">
-                    <Mail size={16} />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-slate-200 group-hover:text-emerald-400 transition-colors">Business Email</span>
-                      <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">NEW</span>
-                    </div>
-                    <p className="text-xs text-slate-500 font-medium">Professional email with your custom domain</p>
-                  </div>
-                </Link>
                 <Link
                   to="/n8n-hosting"
                   onClick={() => setMobileMenuOpen(false)}
