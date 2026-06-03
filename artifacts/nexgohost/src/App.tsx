@@ -590,15 +590,10 @@ function RouterRoot() {
       <Route path="/checkout/email-hosting/dns/:order_id">
         <ClientPage><EmailDnsSetup /></ClientPage>
       </Route>
-      <Route path="/order/domain">
-        <DomainOrder />
-      </Route>
-      <Route path="/checkout/domains">
-        <DomainCartCheckout />
-      </Route>
-      <Route path="/checkout/email-hosting">
-        <EmailHostingCheckout />
-      </Route>
+      {/* Legacy order/checkout pages → unified cart */}
+      <Route path="/order/domain"><Redirect to="/cart" /></Route>
+      <Route path="/checkout/domains"><Redirect to="/cart" /></Route>
+      <Route path="/checkout/email-hosting"><Redirect to="/cart" /></Route>
       <Route path="/dashboard/email">
         <ClientPage><ClientEmailOrders /></ClientPage>
       </Route>

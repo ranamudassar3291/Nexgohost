@@ -395,7 +395,9 @@ router.get("/cart/lookup/:packageId", async (req, res) => {
     }
 
     // 3. Domain extension (tld) check — packageId may be a tld like ".com"
-    if (type === "domain" || !type) {
+    // Normalize "domain_register" / "domain_transfer" → "domain"
+    const normalizedType = type === "domain_register" || type === "domain_transfer" ? "domain" : type;
+    if (normalizedType === "domain" || !type) {
       const tld = packageId.startsWith(".") ? packageId : `.${packageId}`;
       const [ext] = await db.select().from(domainExtensionsTable)
         .where(eq(domainExtensionsTable.extension, tld)).limit(1);

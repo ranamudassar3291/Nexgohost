@@ -22,7 +22,7 @@ import CaptchaWidget from "@/components/CaptchaWidget";
 const BRAND = "#6B46C1";
 const G = "linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%)";
 
-type Step = "cart" | "account" | "payment";
+type Step = "cart" | "domain" | "account" | "payment";
 
 interface PaymentMethod {
   id: string; name: string; type: string; description: string | null; isSandbox: boolean;
@@ -308,24 +308,25 @@ export default function UnifiedCart() {
           data = await apiFetch("/api/checkout", { method: "POST", body: JSON.stringify(body) });
         }
         if (data.invoice?.id) invoiceIds.push(data.invoice.id);
+      }
 
-        // For gateway payments, redirect immediately on first invoice (gateway handles the rest)
-        if (idx === 0 && pmObj?.type === "safepay" && data.invoice?.id) {
-          const spData = await apiFetch("/api/payments/safepay/initiate", {
-            method: "POST", body: JSON.stringify({ invoiceId: data.invoice.id }),
-          });
-          if (spData.checkoutUrl) { clearCart(); window.location.href = spData.checkoutUrl; return; }
-        }
-        if (idx === 0 && pmObj?.type === "rapidgateway" && data.invoice?.id) {
-          const rgData = await apiFetch("/api/payments/rapidgateway/initiate", {
-            method: "POST", body: JSON.stringify({ invoiceId: data.invoice.id }),
-          });
-          if (rgData.checkoutUrl) { clearCart(); window.location.href = rgData.checkoutUrl; return; }
-        }
+      // ── All invoices created — now handle gateway redirect for first invoice ──
+      // (All items are checked out first so no items are lost if gateway redirect fires)
+      const firstInvoice = invoiceIds[0];
+      if (firstInvoice && pmObj?.type === "safepay") {
+        const spData = await apiFetch("/api/payments/safepay/initiate", {
+          method: "POST", body: JSON.stringify({ invoiceId: firstInvoice }),
+        });
+        if (spData.checkoutUrl) { clearCart(); window.location.href = spData.checkoutUrl; return; }
+      }
+      if (firstInvoice && pmObj?.type === "rapidgateway") {
+        const rgData = await apiFetch("/api/payments/rapidgateway/initiate", {
+          method: "POST", body: JSON.stringify({ invoiceId: firstInvoice }),
+        });
+        if (rgData.checkoutUrl) { clearCart(); window.location.href = rgData.checkoutUrl; return; }
       }
 
       clearCart();
-      const firstInvoice = invoiceIds[0];
       setLocation(firstInvoice ? `/dashboard/invoices/${firstInvoice}` : "/dashboard/billing");
       toast({ title: "Order placed successfully!", description: invoiceIds.length > 1 ? `${invoiceIds.length} orders created.` : undefined });
     } catch (err: any) {
@@ -353,6 +354,7 @@ export default function UnifiedCart() {
   }
 
   const hostingItem = items.find(i => i.productType === "hosting");
+  const hasDomainStep = items.some(i => i.productType === "hosting");
   const selectedPmObj = paymentMethods.find(p => p.id === selectedPm);
   const isManual = selectedPmObj && !["safepay", "stripe", "rapidgateway"].includes(selectedPmObj.type);
 
@@ -454,62 +456,15 @@ export default function UnifiedCart() {
                               </div>
                             )}
 
-                            {/* Domain add-on for hosting */}
+                            {/* Domain step teaser for hosting items */}
                             {isHosting && (
-                              <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                                <p className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                                  <Globe size={14} className="text-primary" /> Domain Name
-                                  {freeDomainEligible && <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">FREE with Yearly</span>}
-                                </p>
-                                <div className="space-y-2">
-                                  {[
-                                    { value: "register", label: "Register new domain" },
-                                    { value: "skip", label: "I already have a domain / I'll add it later" },
-                                  ].map(opt => (
-                                    <label key={opt.value} className="flex items-center gap-3 cursor-pointer">
-                                      <input type="radio" name={`domain-${item.packageId}`}
-                                        checked={(item.domainAction ?? "skip") === opt.value}
-                                        onChange={() => updateDomain(item.packageId, domainInput, opt.value as any, getDomainPrice(domainInput))}
-                                        className="accent-primary" />
-                                      <span className="text-sm text-gray-700">{opt.label}</span>
-                                    </label>
-                                  ))}
-                                </div>
-
-                                {item.domainAction === "register" && (
-                                  <div className="mt-3">
-                                    <div className="relative">
-                                      <Globe size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                      <input
-                                        type="text"
-                                        value={domainInput}
-                                        onChange={e => {
-                                          const v = e.target.value;
-                                          setDomainInputs(p => ({ ...p, [item.packageId]: v }));
-                                          checkDomain(item.packageId, v);
-                                          updateDomain(item.packageId, v, "register", getDomainPrice(v));
-                                        }}
-                                        placeholder="example.com"
-                                        className="w-full pl-8 pr-10 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                                      />
-                                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                                        {checking ? <Loader2 size={14} className="animate-spin text-gray-400" />
-                                          : avail === "available" ? <CheckCircle2 size={14} className="text-emerald-500" />
-                                          : avail === "taken" ? <X size={14} className="text-red-500" />
-                                          : null}
-                                      </div>
-                                    </div>
-                                    {avail === "available" && (
-                                      <p className="text-xs text-emerald-600 font-medium mt-1.5 flex items-center gap-1">
-                                        <CheckCircle2 size={11} /> Available!
-                                        {freeDomainEligible
-                                          ? <span className="ml-1 text-emerald-600 font-bold">FREE (yearly plan)</span>
-                                          : getDomainPrice(domainInput) > 0 && <span className="ml-1 text-gray-500">+ {formatPrice(getDomainPrice(domainInput))}</span>}
-                                      </p>
-                                    )}
-                                    {avail === "taken" && <p className="text-xs text-red-500 mt-1.5">This domain is taken. Try another.</p>}
-                                  </div>
-                                )}
+                              <div className="bg-blue-50 rounded-xl px-4 py-3 border border-blue-100 flex items-center gap-2 mt-1">
+                                <Globe size={14} className="text-blue-500 shrink-0" />
+                                <span className="text-xs text-blue-700 font-medium">
+                                  {item.domainAction === "register" && item.domainName
+                                    ? `Domain: ${item.domainName}${item.billingCycle === "yearly" && item.freeDomainEnabled ? " (FREE)" : ""}`
+                                    : "You'll configure your domain in the next step"}
+                                </span>
                               </div>
                             )}
                           </div>
@@ -519,7 +474,8 @@ export default function UnifiedCart() {
                       {/* Continue CTA */}
                       <button
                         onClick={() => {
-                          if (isLoggedIn) { setStep("payment"); }
+                          if (hasDomainStep) { setStep("domain"); }
+                          else if (isLoggedIn) { setStep("payment"); }
                           else { setStep("account"); }
                         }}
                         className="w-full h-12 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all hover:brightness-110 shadow-lg mt-2"
@@ -532,9 +488,97 @@ export default function UnifiedCart() {
               </AnimatePresence>
             </div>
 
-            {/* ── STEP 2: Account ──────────────────────────────────────────── */}
+            {/* ── STEP 2: Domain (hosting items only) ──────────────────────── */}
+            {hasDomainStep && (
+              <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+                <StepHeader num={2} label="Domain" active={step === "domain"} done={step === "account" || step === "payment"} onClick={() => setStep("domain")} />
+                <AnimatePresence>
+                  {step === "domain" && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                      <div className="px-6 pb-6 border-t border-gray-100 space-y-5 pt-4">
+                        {items.filter(i => i.productType === "hosting").map(item => {
+                          const domainInput = domainInputs[item.packageId] ?? item.domainName ?? "";
+                          const avail = domainAvail[item.packageId];
+                          const checking = domainChecking[item.packageId];
+                          const isYearly = item.billingCycle === "yearly";
+                          const freeDomainEligible = isYearly && item.freeDomainEnabled;
+                          return (
+                            <div key={item.packageId} className="space-y-3">
+                              <p className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                                <Server size={14} className="text-primary" /> {item.packageName}
+                              </p>
+                              <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 space-y-3">
+                                <p className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                                  <Globe size={14} className="text-primary" /> Domain Name
+                                  {freeDomainEligible && <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">FREE with Yearly</span>}
+                                </p>
+                                <div className="space-y-2">
+                                  {[
+                                    { value: "register", label: "Register new domain" },
+                                    { value: "skip", label: "I already have a domain / I'll add it later" },
+                                  ].map(opt => (
+                                    <label key={opt.value} className="flex items-center gap-3 cursor-pointer">
+                                      <input type="radio" name={`domain-step-${item.packageId}`}
+                                        checked={(item.domainAction ?? "skip") === opt.value}
+                                        onChange={() => updateDomain(item.packageId, domainInput, opt.value as any, getDomainPrice(domainInput))}
+                                        className="accent-primary" />
+                                      <span className="text-sm text-gray-700">{opt.label}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                                {item.domainAction === "register" && (
+                                  <div>
+                                    <div className="relative">
+                                      <Globe size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                      <input type="text" value={domainInput}
+                                        onChange={e => {
+                                          const v = e.target.value;
+                                          setDomainInputs(p => ({ ...p, [item.packageId]: v }));
+                                          checkDomain(item.packageId, v);
+                                          updateDomain(item.packageId, v, "register", getDomainPrice(v));
+                                        }}
+                                        placeholder="example.com"
+                                        className="w-full pl-8 pr-10 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" />
+                                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                        {checking ? <Loader2 size={14} className="animate-spin text-gray-400" />
+                                          : avail === "available" ? <CheckCircle2 size={14} className="text-emerald-500" />
+                                          : avail === "taken" ? <X size={14} className="text-red-500" /> : null}
+                                      </div>
+                                    </div>
+                                    {avail === "available" && (
+                                      <p className="text-xs text-emerald-600 font-medium mt-1.5 flex items-center gap-1">
+                                        <CheckCircle2 size={11} /> Available!
+                                        {freeDomainEligible
+                                          ? <span className="ml-1 font-bold">FREE (yearly plan)</span>
+                                          : getDomainPrice(domainInput) > 0 && <span className="ml-1 text-gray-500">+ {formatPrice(getDomainPrice(domainInput))}</span>}
+                                      </p>
+                                    )}
+                                    {avail === "taken" && <p className="text-xs text-red-500 mt-1.5">This domain is taken. Try another.</p>}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        <button
+                          onClick={() => {
+                            if (isLoggedIn) { setStep("payment"); }
+                            else { setStep("account"); }
+                          }}
+                          className="w-full h-12 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all hover:brightness-110 shadow-lg"
+                          style={{ background: G }}>
+                          Continue <ChevronRight size={18} />
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+
+            {/* ── STEP 3: Account ──────────────────────────────────────────── */}
             <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-              <StepHeader num={2} label={isLoggedIn ? "Account ✓" : "Account"} active={step === "account"} done={isLoggedIn || step === "payment"} onClick={() => setStep("account")} />
+              <StepHeader num={hasDomainStep ? 3 : 2} label={isLoggedIn ? "Account ✓" : "Account"} active={step === "account"} done={isLoggedIn || step === "payment"} onClick={() => setStep("account")} />
               <AnimatePresence>
                 {step === "account" && (
                   <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
@@ -620,9 +664,9 @@ export default function UnifiedCart() {
               </AnimatePresence>
             </div>
 
-            {/* ── STEP 3: Payment ──────────────────────────────────────────── */}
+            {/* ── STEP 4: Payment ──────────────────────────────────────────── */}
             <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-              <StepHeader num={3} label="Payment" active={step === "payment"} done={false} onClick={undefined} />
+              <StepHeader num={hasDomainStep ? 4 : 3} label="Payment" active={step === "payment"} done={false} onClick={undefined} />
               <AnimatePresence>
                 {step === "payment" && (
                   <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
