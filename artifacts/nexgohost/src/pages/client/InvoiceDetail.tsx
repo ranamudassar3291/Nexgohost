@@ -47,7 +47,7 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; bg
 
 const TYPE_ICONS: Record<string, string> = {
   jazzcash: "📱", easypaisa: "💚", bank_transfer: "🏦",
-  paypal: "🅿️", stripe: "💳", crypto: "₿", manual: "✍️", safepay: "🔐",
+  paypal: "🅿️", stripe: "💳", crypto: "₿", manual: "✍️", safepay: "🔐", rapidgateway: "⚡",
 };
 
 // ─── Payment Instructions sub-component ───────────────────────────────────────
@@ -156,6 +156,7 @@ export default function InvoiceDetail() {
   const [payingWithCredits, setPayingWithCredits] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [safepayInitiating, setSafepayInitiating] = useState(false);
+  const [rgInitiating, setRgInitiating] = useState(false);
 
   const { data: invoice, isLoading } = useQuery<Invoice>({
     queryKey: ["invoice", id],
@@ -220,6 +221,30 @@ export default function InvoiceDetail() {
       toast({ title: "Payment failed", description: err.message, variant: "destructive" });
     } finally {
       setPayingWithCredits(false);
+    }
+  };
+
+  const handleRapidGatewayPay = async () => {
+    if (!invoice) return;
+    setRgInitiating(true);
+    try {
+      const data = await apiFetch(`/api/payments/rapidgateway/initiate`, {
+        method: "POST",
+        body: JSON.stringify({ invoiceId: invoice.id }),
+      });
+      if (data?.redirectUrl) {
+        window.location.assign(data.redirectUrl);
+        return;
+      } else {
+        throw new Error(data?.error || "No checkout URL returned. Please try again.");
+      }
+    } catch (err: any) {
+      toast({
+        title: "RapidGateway Error",
+        description: err.message || "Failed to initiate payment. Please try again.",
+        variant: "destructive",
+      });
+      setRgInitiating(false);
     }
   };
 
@@ -608,9 +633,13 @@ export default function InvoiceDetail() {
                             }`}
                           >
                             <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 text-xl ${
-                              pm.type === "safepay" ? "bg-[#5046e4]/10" : pm.type === "stripe" ? "bg-[#635bff]/10" : "bg-blue-500/10"
+                              pm.type === "rapidgateway" ? "bg-indigo-500/10" :
+                              pm.type === "safepay" ? "bg-[#5046e4]/10" :
+                              pm.type === "stripe" ? "bg-[#635bff]/10" : "bg-blue-500/10"
                             }`}>
-                              {pm.type === "safepay" ? (
+                              {pm.type === "rapidgateway" ? (
+                                <span className="text-indigo-500 text-lg">⚡</span>
+                              ) : pm.type === "safepay" ? (
                                 <span className="text-[#5046e4] text-lg">🔐</span>
                               ) : pm.type === "stripe" ? (
                                 <CreditCard size={20} className="text-[#635bff]" />
@@ -623,7 +652,7 @@ export default function InvoiceDetail() {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <p className="text-sm font-bold text-slate-800">{pm.name}</p>
-                                {["safepay", "stripe"].includes(pm.type) && (
+                                {["safepay", "stripe", "rapidgateway"].includes(pm.type) && (
                                   <span className="px-1.5 py-0.5 text-[9px] font-bold rounded-full bg-green-500/15 text-green-600">⚡ Instant</span>
                                 )}
                               </div>
@@ -644,6 +673,40 @@ export default function InvoiceDetail() {
                   </div>
                 </div>
               )}
+
+              {/* ── RapidGateway CTA ── */}
+              <AnimatePresence>
+                {selectedGateway && selectedMethodType === "rapidgateway" && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    className="rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-5 space-y-4"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                          <span className="text-lg">⚡</span> Pay via RapidGateway
+                        </p>
+                        <p className="text-xs text-slate-500 mt-0.5">Secure card payment — you'll be redirected to RapidGateway's hosted page.</p>
+                        <p className="text-xs text-slate-400 mt-0.5">🔒 Card details never touch our server (PCI-DSS compliant)</p>
+                      </div>
+                      <span className="text-lg font-black" style={{ color: BRAND }}>{invFmt(Number(invoice.total))}</span>
+                    </div>
+                    <Button
+                      type="button"
+                      disabled={rgInitiating}
+                      onClick={handleRapidGatewayPay}
+                      className="w-full gap-2 text-white h-12 rounded-xl font-bold text-sm bg-indigo-600 hover:bg-indigo-500"
+                    >
+                      {rgInitiating
+                        ? <><Loader2 size={16} className="animate-spin" /> Redirecting to RapidGateway…</>
+                        : <><CreditCard size={16} /> Pay {invFmt(Number(invoice.total))} with RapidGateway</>
+                      }
+                    </Button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* ── Safepay CTA ── */}
               <AnimatePresence>
@@ -684,7 +747,7 @@ export default function InvoiceDetail() {
 
               {/* ── Manual Payment Proof Form ── */}
               <AnimatePresence>
-                {selectedGateway && selectedMethodType !== "safepay" && (
+                {selectedGateway && !["safepay", "rapidgateway"].includes(selectedMethodType ?? "") && (
                   <motion.form
                     initial={{ opacity: 0, y: -8 }}
                     animate={{ opacity: 1, y: 0 }}

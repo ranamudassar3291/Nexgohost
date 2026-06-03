@@ -1,0 +1,62 @@
+// pages/api/checkout.ts  (Next.js API route — runs server-side)
+import type { NextApiRequest, NextApiResponse } from 'next';
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const { amount, phone, email, orderId } = req.body;
+
+  // ── Step 1: Get Bearer token ────────────────────────────────────
+  const creds = Buffer
+    .from(`${process.env.RG_MERCHANT_ID}:${process.env.RG_CLIENT_SECRET}`)
+    .toString('base64');
+
+  const tokenRes = await fetch('https://secure.rapid-gateway.com/oauth2/token', {
+    method: 'POST',
+    headers: {
+      Authorization:  `Basic ${creds}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: 'grant_type=client_credentials',
+  });
+  const { access_token } = await tokenRes.json();
+
+  // ── Step 2: Submit transaction ──────────────────────────────────
+  const body = new URLSearchParams({
+    MERCHANT_ID:            process.env.RG_MERCHANT_ID!,
+    MERCHANT_NAME:          'Your Store',
+    TXNAMT:                 String(amount),
+    CURRENCY_CODE:          'PKR',
+    CUSTOMER_MOBILE_NO:     phone,
+    CUSTOMER_EMAIL_ADDRESS: email,
+    BASKET_ID:              orderId,
+    SUCCESS_URL:            `${process.env.BASE_URL}/payment/success`,
+    FAILURE_URL:            `${process.env.BASE_URL}/payment/failure`,
+    CHECKOUT_URL:           `${process.env.BASE_URL}/payment/complete`,
+    VERSION:                'MY_VER_1.0',
+    PROCCODE:               '0',
+  });
+
+  const payRes = await fetch(
+    'https://secure.rapid-gateway.com/rapid/process-transaction',
+    {
+      method: 'POST',
+      headers: {
+        Authorization:  `Bearer ${access_token}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: body.toString(),
+      redirect: 'manual',   // capture Location header without following it
+    }
+  );
+
+  const redirectUrl = payRes.headers.get('location');
+  res.json({ redirectUrl });
+}
+
+// ── Step 3: In your React component ────────────────────────────────
+// const { redirectUrl } = await fetch('/api/checkout', {
+//   method: 'POST',
+//   headers: { 'Content-Type': 'application/json' },
+//   body: JSON.stringify({ amount, phone, email, orderId }),
+// }).then(r => r.json());
+//
+// window.location.href = redirectUrl;   // send customer to checkout

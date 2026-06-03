@@ -79,6 +79,7 @@ import Checkout from "@/pages/client/Checkout";
 import Cart from "@/pages/client/Cart";
 import InvoiceDetail from "@/pages/client/InvoiceDetail";
 import SafepayReturn from "@/pages/client/SafepayReturn";
+import RapidGatewayReturn from "@/pages/client/RapidGatewayReturn";
 import ClientOrders from "@/pages/client/Orders";
 import Affiliate from "@/pages/client/Affiliate";
 import Credits from "@/pages/client/Credits";
@@ -624,6 +625,9 @@ function RouterRoot() {
       </Route>
       <Route path="/dashboard/payment/return">
         <ClientPage><SafepayReturn /></ClientPage>
+      </Route>
+      <Route path="/client/payment/rg-return">
+        <ClientPage><RapidGatewayReturn /></ClientPage>
       </Route>
       <Route path="/dashboard/tickets/:id">
         <ClientPage><ClientTicketDetail /></ClientPage>

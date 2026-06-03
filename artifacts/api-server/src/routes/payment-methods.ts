@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { paymentMethodsTable } from "@workspace/db/schema";
 import { encryptField, decryptField } from "../lib/fieldCrypto.js";
 
-const PAYMENT_SECRET_FIELDS = ["secretKey", "liveSecretKey", "sandboxSecretKey", "privateKey", "apiKey", "apiSecret"];
+const PAYMENT_SECRET_FIELDS = ["secretKey", "liveSecretKey", "sandboxSecretKey", "privateKey", "apiKey", "apiSecret", "clientSecret"];
 
 function encryptPaymentSettings(settings: Record<string, unknown>): string {
   const result = { ...settings };
@@ -82,6 +82,8 @@ function publicSettings(type: string, settings: Record<string, unknown>) {
         sandboxPublicKey: settings.sandboxPublicKey,
         livePublicKey: settings.livePublicKey,
       };
+    case "rapidgateway":
+      return { merchantName: settings.merchantName };
     default:
       return {};
   }
@@ -123,7 +125,7 @@ router.post("/admin/payment-methods", authenticate, requireAdmin, async (req: Au
       return;
     }
 
-    const validTypes = ["stripe", "paypal", "easypaisa", "bank_transfer", "crypto", "manual", "safepay"];
+    const validTypes = ["stripe", "paypal", "easypaisa", "bank_transfer", "crypto", "manual", "safepay", "rapidgateway"];
     if (!validTypes.includes(type)) {
       res.status(400).json({ error: `type must be one of: ${validTypes.join(", ")}` });
       return;

@@ -114,6 +114,7 @@ function formatInvoice(i: typeof invoicesTable.$inferSelect) {
 export async function processInvoicePaid(
   invoiceId: string,
   transactionRef: string,
+  paymentMethod: string = "safepay",
   paymentNotes?: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
@@ -142,13 +143,15 @@ export async function processInvoicePaid(
 
     console.log(`[ACTIVATE] Invoice ${updated.invoiceNumber} marked PAID (ref: ${transactionRef})`);
 
-    // 4. Record Safepay transaction
+    // 4. Record transaction
     try {
+      const validMethods = ["stripe","paypal","jazzcash","easypaisa","bank_transfer","crypto","manual","safepay","rapidgateway"];
+      const method: any = validMethods.includes(paymentMethod) ? paymentMethod : "manual";
       await db.insert(transactionsTable).values({
         clientId: updated.clientId,
         invoiceId: updated.id,
         amount: updated.total,
-        method: "safepay",
+        method,
         status: "success",
         transactionRef,
       });

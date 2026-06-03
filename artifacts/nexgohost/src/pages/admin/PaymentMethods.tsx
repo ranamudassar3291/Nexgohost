@@ -14,6 +14,7 @@ interface PaymentMethod {
 }
 
 const TYPES = [
+  { value: "rapidgateway",  label: "RapidGateway",    icon: "⚡" },
   { value: "safepay",       label: "Safepay",         icon: "🔐" },
   { value: "easypaisa",     label: "EasyPaisa",       icon: "💚" },
   { value: "bank_transfer", label: "Bank Transfer",   icon: "🏦" },
@@ -26,6 +27,11 @@ const TYPES = [
 const TYPE_MAP = Object.fromEntries(TYPES.map(t => [t.value, t]));
 
 const SETTINGS_FIELDS: Record<string, { key: string; label: string; placeholder: string; secret?: boolean; hint?: string }[]> = {
+  rapidgateway: [
+    { key: "merchantId",    label: "Merchant ID",     placeholder: "Your RapidGateway Merchant ID",     hint: "From RapidGateway Dashboard → My Account → Merchant ID" },
+    { key: "clientSecret",  label: "Client Secret",   placeholder: "Your RapidGateway Client Secret",   secret: true, hint: "From RapidGateway Dashboard → My Account → Client Secret" },
+    { key: "merchantName",  label: "Merchant Name",   placeholder: "Your Business Name (shown on checkout)", hint: "Display name shown to customers on RapidGateway checkout page" },
+  ],
   safepay: [
     { key: "sandboxPublicKey", label: "Sandbox Client Key",  placeholder: "sec_xxxxxxxx or pub_xxxxxxxx", hint: "From Safepay Dashboard → Developers → API Keys → Client/Merchant Key (starts with sec_ or pub_)" },
     { key: "sandboxSecretKey", label: "Sandbox Secret Key",  placeholder: "Raw hex or sec_xxx key", secret: true, hint: "From Safepay Dashboard → Developers → API Keys → Secret Key (sent as X-SFPY-SECRET-KEY header)" },
@@ -142,11 +148,7 @@ export default function PaymentMethods() {
   const handleTestConfig = async (method: PaymentMethod) => {
     setTestResult(null);
 
-    // Use the CURRENT local sandbox toggle state, not the stale DB value
     const isSandbox = editIsSandbox;
-
-    // Try sandbox keys first if sandbox mode is on, else try live keys
-    // Fall back to the other set if the primary set is empty
     const sandboxPub = (editSettings["sandboxPublicKey"] ?? "").trim();
     const sandboxSec = (editSettings["sandboxSecretKey"] ?? "").trim();
     const livePub    = (editSettings["livePublicKey"]    ?? "").trim();
@@ -155,7 +157,6 @@ export default function PaymentMethods() {
     let publicKey = isSandbox ? sandboxPub : livePub;
     let secretKey = isSandbox ? sandboxSec : liveSec;
 
-    // Fallback: if the preferred set is empty, try the other set
     if (!publicKey && !secretKey) {
       publicKey = isSandbox ? livePub : sandboxPub;
       secretKey = isSandbox ? liveSec : sandboxSec;
@@ -173,6 +174,31 @@ export default function PaymentMethods() {
       setTestResult({ ok: !!res?.ok, message: res?.message ?? res?.error ?? "Unknown result" });
     } catch (err: any) {
       setTestResult({ ok: false, message: err?.message ?? "Network error — could not reach server." });
+    } finally {
+      setTestingConfig(false);
+    }
+  };
+
+  const handleTestRapidGateway = async (method: PaymentMethod) => {
+    setTestResult(null);
+
+    if (method.type === "safepay") { handleTestConfig(method); return; }
+
+    const merchantId   = (editSettings["merchantId"]   ?? "").trim();
+    const clientSecret = (editSettings["clientSecret"] ?? "").trim();
+
+    if (!merchantId || !clientSecret) {
+      setTestResult({ ok: false, message: "Please enter Merchant ID and Client Secret before testing." });
+      return;
+    }
+
+    setTestingConfig(true);
+    try {
+      const params = new URLSearchParams({ merchantId, clientSecret });
+      const res = await apiFetch(`/api/payments/rapidgateway/test?${params}`);
+      setTestResult({ ok: !!res?.ok, message: res?.message ?? res?.error ?? "Unknown result" });
+    } catch (err: any) {
+      setTestResult({ ok: false, message: err?.message ?? "Network error — could not reach RapidGateway." });
     } finally {
       setTestingConfig(false);
     }
@@ -377,8 +403,8 @@ export default function PaymentMethods() {
                           </div>
                         )}
 
-                        {/* Test result banner (Safepay only) */}
-                        {m.type === "safepay" && isEditing && testResult && (
+                        {/* Test result banner (Safepay / RapidGateway) */}
+                        {["safepay", "rapidgateway"].includes(m.type) && isEditing && testResult && (
                           <div className={`flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm border ${testResult.ok ? "bg-green-500/10 border-green-500/30 text-green-400" : "bg-destructive/10 border-destructive/30 text-destructive"}`}>
                             {testResult.ok ? <CheckCircle size={15} className="mt-0.5 shrink-0" /> : <XCircle size={15} className="mt-0.5 shrink-0" />}
                             <span>{testResult.message}</span>
@@ -391,15 +417,15 @@ export default function PaymentMethods() {
                               <Button onClick={() => handleSaveSettings(m)} disabled={savingSettings} className="bg-primary hover:bg-primary/90 gap-2">
                                 {savingSettings ? <Loader2 size={14} className="animate-spin" /> : null} Save Settings
                               </Button>
-                              {m.type === "safepay" && (
+                              {["safepay", "rapidgateway"].includes(m.type) && (
                                 <Button
                                   variant="outline"
-                                  onClick={() => handleTestConfig(m)}
+                                  onClick={() => handleTestRapidGateway(m)}
                                   disabled={testingConfig}
                                   className="gap-2"
                                 >
                                   {testingConfig ? <Loader2 size={14} className="animate-spin" /> : <TestTube size={14} />}
-                                  Test Configuration
+                                  Test Connection
                                 </Button>
                               )}
                               <Button variant="outline" onClick={() => { setEditId(null); setExpandedId(null); setTestResult(null); }}>Cancel</Button>

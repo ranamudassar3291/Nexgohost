@@ -1105,6 +1105,12 @@ async function runStartupMigrations() {
     }
     console.log("[MIGRATIONS] activity_logs extended schema ready");
 
+    // Add rapidgateway to payment_method enum (idempotent)
+    await db.execute(sql.raw(
+      `DO $$ BEGIN ALTER TYPE payment_method ADD VALUE IF NOT EXISTS 'rapidgateway'; EXCEPTION WHEN OTHERS THEN NULL; END $$`
+    ));
+    console.log("[MIGRATIONS] payment_method enum updated (rapidgateway)");
+
   } catch (err: any) {
     console.warn("[MIGRATIONS] Startup migration warning (non-fatal):", err.message);
   }
