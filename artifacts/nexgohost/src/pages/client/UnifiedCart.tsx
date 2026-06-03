@@ -293,7 +293,20 @@ export default function UnifiedCart() {
           body.domainPeriod = 1;
         }
 
-        const data = await apiFetch("/api/checkout", { method: "POST", body: JSON.stringify(body) });
+        // Email items use the dedicated email-orders endpoint (checkout.ts doesn't support emailPackageId)
+        let data: any;
+        if (item.productType === "email") {
+          data = await apiFetch("/api/my/email-orders", {
+            method: "POST",
+            body: JSON.stringify({
+              package_id: item.packageId,
+              domain_name: item.domainName ?? "",
+              billing_cycle: item.billingCycle === "yearly" ? "yearly" : "monthly",
+            }),
+          });
+        } else {
+          data = await apiFetch("/api/checkout", { method: "POST", body: JSON.stringify(body) });
+        }
         if (data.invoice?.id) invoiceIds.push(data.invoice.id);
 
         // For gateway payments, redirect immediately on first invoice (gateway handles the rest)

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { cartItemsTable, guestCartItemsTable, hostingPlansTable, vpsPlansTable, affiliatesTable, promoCodesTable } from "@workspace/db/schema";
+import { cartItemsTable, guestCartItemsTable, hostingPlansTable, vpsPlansTable, affiliatesTable, promoCodesTable, domainExtensionsTable } from "@workspace/db/schema";
 import { authenticate, type AuthRequest } from "../lib/auth.js";
 import { eq, and } from "drizzle-orm";
 import { sql } from "drizzle-orm";
@@ -348,36 +348,79 @@ router.delete("/guest/domain-session/:token", async (req, res) => {
 });
 
 // ─── GET /api/cart/lookup/:packageId — detect product type + return pricing ──
-// Used by /cart/add/:packageId to resolve plan details before adding to cart
+// Resolves hosting, VPS, email (admin_email_packages), and domain (extension tld) plans.
 router.get("/cart/lookup/:packageId", async (req, res) => {
   try {
     const { packageId } = req.params;
     const { type } = req.query as { type?: string };
 
+    // 1. VPS check
     if (type === "vps" || !type) {
       const [vpsPlan] = await db.select().from(vpsPlansTable)
         .where(eq(vpsPlansTable.id, packageId)).limit(1);
-      if (vpsPlan && (type === "vps" || !type)) {
-        if (vpsPlan.isActive) {
-          return res.json({
-            packageId: vpsPlan.id,
-            packageName: vpsPlan.name,
-            productType: "vps",
-            monthlyPrice: Number(vpsPlan.price),
-            quarterlyPrice: (vpsPlan as any).quarterlyPrice ? Number((vpsPlan as any).quarterlyPrice) : null,
-            semiannualPrice: (vpsPlan as any).semiannualPrice ? Number((vpsPlan as any).semiannualPrice) : null,
-            yearlyPrice: (vpsPlan as any).yearlyPrice ? Number((vpsPlan as any).yearlyPrice) : null,
-            description: vpsPlan.description ?? null,
-            features: (vpsPlan as any).features ?? [],
-          });
-        }
+      if (vpsPlan?.isActive) {
+        return res.json({
+          packageId: vpsPlan.id,
+          packageName: vpsPlan.name,
+          productType: "vps",
+          monthlyPrice: Number(vpsPlan.price),
+          quarterlyPrice: (vpsPlan as any).quarterlyPrice ? Number((vpsPlan as any).quarterlyPrice) : null,
+          semiannualPrice: (vpsPlan as any).semiannualPrice ? Number((vpsPlan as any).semiannualPrice) : null,
+          yearlyPrice: (vpsPlan as any).yearlyPrice ? Number((vpsPlan as any).yearlyPrice) : null,
+          description: vpsPlan.description ?? null,
+          features: (vpsPlan as any).features ?? [],
+        });
       }
     }
 
-    // Default: check hosting plans
+    // 2. Email (admin_email_packages) check
+    if (type === "email" || !type) {
+      const emailRows = await db.execute(sql`SELECT * FROM admin_email_packages WHERE id = ${packageId} LIMIT 1`);
+      const ep = (emailRows as any).rows?.[0] ?? (emailRows as any)[0];
+      if (ep) {
+        return res.json({
+          packageId: ep.id,
+          packageName: ep.name,
+          productType: "email",
+          monthlyPrice: Number(ep.price ?? 0),
+          yearlyPrice: ep.yearly_price ? Number(ep.yearly_price) : null,
+          quarterlyPrice: null,
+          semiannualPrice: null,
+          maxStorageGb: ep.max_storage_gb ?? null,
+          maxMailboxes: ep.max_mailboxes ?? null,
+          description: ep.description ?? null,
+          features: [],
+        });
+      }
+    }
+
+    // 3. Domain extension (tld) check — packageId may be a tld like ".com"
+    if (type === "domain" || !type) {
+      const tld = packageId.startsWith(".") ? packageId : `.${packageId}`;
+      const [ext] = await db.select().from(domainExtensionsTable)
+        .where(eq(domainExtensionsTable.extension, tld)).limit(1);
+      if (ext && ext.isActive) {
+        return res.json({
+          packageId: ext.extension,
+          packageName: `${ext.extension} Domain`,
+          productType: "domain",
+          monthlyPrice: Number(ext.registerPrice),
+          yearlyPrice: Number(ext.registerPrice),
+          quarterlyPrice: null,
+          semiannualPrice: null,
+          transferPrice: Number(ext.transferPrice),
+          renewalPrice: ext.renewalPrice ? Number(ext.renewalPrice) : Number(ext.registerPrice),
+          renewalEnabled: true,
+          description: null,
+          features: [],
+        });
+      }
+    }
+
+    // 4. Hosting plan check
     const [plan] = await db.select().from(hostingPlansTable)
       .where(eq(hostingPlansTable.id, packageId)).limit(1);
-    if (plan && plan.isActive) {
+    if (plan?.isActive) {
       return res.json({
         packageId: plan.id,
         packageName: plan.name,

@@ -644,9 +644,11 @@ function RouterRoot() {
       {/* ── Unified short-link & direct-order routes ── */}
       {/* /buy/:planId — clean sharable link by UUID or slug */}
       <Route path="/buy/:planId" component={OrderBySlug}/>
-      {/* /order/group/:groupId, /order/add/:packageId etc — kept for backward compat */}
+      {/* /order/group/:groupId → unified cart; /order/add/:packageId → /cart/add/:packageId */}
       <Route path="/order/group/:groupId" component={OrderByGroup}/>
-      <Route path="/order/add/:packageId" component={OrderByPackage}/>
+      <Route path="/order/add/:packageId">
+        {() => { const { packageId } = useParams<{ packageId: string }>(); window.location.replace(`/cart/add/${packageId}`); return null; }}
+      </Route>
       {/* WHMCS-style clean URL: /order/config/index.php?pid=UUID */}
       <Route path="/order/config/index.php" component={OrderByPid}/>
       {/* VPS direct links: /order/vps/:planId and ?vps_id=UUID */}
@@ -663,7 +665,7 @@ function RouterRoot() {
         <ClientPage><ClientOrders /></ClientPage>
       </Route>
       <Route path="/dashboard/cart">
-        <Redirect to="/dashboard/orders/new" />
+        <Redirect to="/cart" />
       </Route>
       <Route path="/dashboard/checkout">
         <CheckoutLayout allowGuest><Checkout /></CheckoutLayout>
