@@ -752,8 +752,8 @@ export async function runTwentyiStatusSyncCron(): Promise<void> {
         sites = await runWithCtx(
           {
             keyType: (server as any).keyType ?? "general",
-            proxyUrl: server.twentyiBaseUrl ?? undefined,
-            baseUrl: server.twentyiBaseUrl ?? undefined,
+            proxyUrl: (server as any).proxyUrl ?? undefined,
+            baseUrl: undefined,
           },
           () => twentyiListSites(apiKey),
         );
@@ -1653,8 +1653,8 @@ export async function runTwentyiHealthCheck(): Promise<void> {
     const result = await runWithCtx(
       {
         keyType: (server as any).keyType ?? "general",
-        proxyUrl: server.twentyiBaseUrl ?? undefined,
-        baseUrl: server.twentyiBaseUrl ?? undefined,
+        proxyUrl: (server as any).proxyUrl ?? undefined,
+        baseUrl: undefined,
       },
       () => twentyiTestConnection(apiKey),
     );

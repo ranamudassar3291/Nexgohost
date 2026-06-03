@@ -361,8 +361,8 @@ router.post("/admin/servers/:id/test", authenticate, requireAdmin, async (req, r
     const result = await runWithCtx(
       {
         keyType: server.keyType ?? "general",
-        proxyUrl: server.twentyiBaseUrl ?? undefined,
-        baseUrl: server.twentyiBaseUrl ?? undefined,
+        proxyUrl: server.proxyUrl ?? undefined,
+        baseUrl: undefined,
       },
       () => twentyiTestConnection(effectiveKey),
     );
