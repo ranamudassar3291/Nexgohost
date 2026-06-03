@@ -156,4 +156,71 @@ router.put("/admin/domain-bundles", authenticate, requireAdmin, async (req, res)
   res.json({ success: true, bundles });
 });
 
+// ── Ionos-Style Bundle Pricing Config ──────────────────────────────────────
+const BUNDLE_PRICING_KEY = "domain_bundle_pricing_v1";
+
+interface BundlePricingEntry {
+  tld: string;
+  price: number;
+  isFree: boolean;
+  isEnabled: boolean;
+}
+
+const DEFAULT_BUNDLE_PRICING: BundlePricingEntry[] = [
+  { tld: ".store",  price: 599,  isFree: false, isEnabled: true },
+  { tld: ".online", price: 299,  isFree: false, isEnabled: true },
+  { tld: ".co.uk",  price: 1299, isFree: false, isEnabled: true },
+  { tld: ".net",    price: 1799, isFree: false, isEnabled: true },
+  { tld: ".org",    price: 1499, isFree: false, isEnabled: true },
+  { tld: ".info",   price: 699,  isFree: false, isEnabled: false },
+  { tld: ".biz",    price: 799,  isFree: false, isEnabled: false },
+  { tld: ".io",     price: 3499, isFree: false, isEnabled: false },
+];
+
+async function getBundlePricing(): Promise<BundlePricingEntry[]> {
+  const [row] = await db.select().from(settingsTable).where(eq(settingsTable.key, BUNDLE_PRICING_KEY)).limit(1);
+  if (!row) return DEFAULT_BUNDLE_PRICING;
+  try { return JSON.parse(row.value as string); } catch { return DEFAULT_BUNDLE_PRICING; }
+}
+
+// GET /api/domain-bundle-pricing — public (only enabled)
+router.get("/domain-bundle-pricing", async (_req, res) => {
+  const config = await getBundlePricing();
+  res.json(config.filter(e => e.isEnabled));
+});
+
+// GET /api/admin/domain-bundle-pricing — admin (all entries)
+router.get("/admin/domain-bundle-pricing", authenticate, requireAdmin, async (_req, res) => {
+  res.json(await getBundlePricing());
+});
+
+// PUT /api/admin/domain-bundle-pricing — admin save
+router.put("/admin/domain-bundle-pricing", authenticate, requireAdmin, async (req, res) => {
+  const config = req.body as BundlePricingEntry[];
+  if (!Array.isArray(config)) { res.status(400).json({ error: "Expected array" }); return; }
+  const value = JSON.stringify(config);
+  const [existing] = await db.select().from(settingsTable).where(eq(settingsTable.key, BUNDLE_PRICING_KEY)).limit(1);
+  if (existing) {
+    await db.update(settingsTable).set({ value } as any).where(eq(settingsTable.key, BUNDLE_PRICING_KEY));
+  } else {
+    await db.insert(settingsTable).values({ key: BUNDLE_PRICING_KEY, value } as any);
+  }
+  res.json({ success: true });
+});
+
+// POST /api/admin/domain-bundle-pricing/add — add one entry
+router.post("/admin/domain-bundle-pricing/add", authenticate, requireAdmin, async (req, res) => {
+  const { tld, price, isFree } = req.body as { tld: string; price: number; isFree: boolean };
+  if (!tld) { res.status(400).json({ error: "TLD required" }); return; }
+  const config = await getBundlePricing();
+  const normalized = tld.trim().toLowerCase().startsWith(".") ? tld.trim().toLowerCase() : "." + tld.trim().toLowerCase();
+  if (config.find(e => e.tld === normalized)) { res.status(409).json({ error: "TLD already exists" }); return; }
+  config.push({ tld: normalized, price: Number(price) || 0, isFree: !!isFree, isEnabled: true });
+  const value = JSON.stringify(config);
+  const [existing] = await db.select().from(settingsTable).where(eq(settingsTable.key, BUNDLE_PRICING_KEY)).limit(1);
+  if (existing) await db.update(settingsTable).set({ value } as any).where(eq(settingsTable.key, BUNDLE_PRICING_KEY));
+  else await db.insert(settingsTable).values({ key: BUNDLE_PRICING_KEY, value } as any);
+  res.json({ success: true, config });
+});
+
 export default router;

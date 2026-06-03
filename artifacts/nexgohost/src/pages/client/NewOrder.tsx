@@ -697,7 +697,10 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   // When coming from /order/group/:id → start at plan step (1)
   // When coming from /order/vps/:id → jump to VPS configure step (2)
   // When coming from public domain search → jump straight to review step (3)
+  // _ws param: saved step before login redirect — restores user to correct step after auth
+  const _wsParam = _urlParams.get("_ws") ? parseInt(_urlParams.get("_ws")!) : null;
   const [step,    setStep]    = useState<0|1|2|3>(
+    (_wsParam !== null && _wsParam >= 1 && _wsParam <= 3) ? (_wsParam as 1|2|3) :
     _isDomainPreload    ? 3 :
     _urlService === "domain" ? 2 :
     isVpsDirectLink     ? 2 :
@@ -849,6 +852,15 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   // show "Want to add hosting?" before moving to checkout
   const [domainPendingUpsell, setDomainPendingUpsell] = useState(false);
 
+  // ── Ionos-Style Domain Bundle ────────────────────────────────────────────
+  // bundleConfig: list of bundle extensions + prices from admin
+  // selectedBundleTlds: which bundle extensions the user has selected
+  // bundleOrdersPlacing: spinner while placing bundle domain orders
+  const [bundleConfig, setBundleConfig] = useState<{tld: string; price: number; isFree: boolean}[]>([]);
+  const [selectedBundleTlds, setSelectedBundleTlds] = useState<Set<string>>(new Set());
+  const [showBundlePanel, setShowBundlePanel] = useState(false);
+  const [bundleOrdersPlacing, setBundleOrdersPlacing] = useState(false);
+
   // VPS flow
   const [selectedVpsPlan,   setSelectedVpsPlan]   = useState<VpsPlan | null>(null);
   const [vpsSelectedCycle,  setVpsSelectedCycle]  = useState<VpsCycle>("yearly");
@@ -963,6 +975,21 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialVpsPlanId, vpsPlans]);
 
+  // Fetch Ionos-style bundle pricing config on mount
+  useEffect(() => {
+    fetch("/api/domain-bundle-pricing")
+      .then(r => r.json())
+      .then((d: any[]) => {
+        const config = Array.isArray(d) ? d : [];
+        setBundleConfig(config);
+        // Auto-select free extensions
+        const freeTlds = new Set<string>(config.filter(e => e.isFree).map(e => e.tld));
+        setSelectedBundleTlds(freeTlds);
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Derived ───────────────────────────────────────────────────────────────
 
   // Plans filtered by selected group
@@ -983,9 +1010,13 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
   const step1Complete = !!pendingPlan || !!selectedPlan;
   const step2Complete = domainMode !== null;
   const _vpsPrice = selectedVpsPlan ? vpsPriceForCycle(selectedVpsPlan, vpsSelectedCycle) : 0;
+  // Bundle domain total: sum of selected paid bundle extensions
+  const _bundleTotal = cartDomain
+    ? bundleConfig.filter(e => selectedBundleTlds.has(e.tld) && !e.isFree).reduce((sum, e) => sum + e.price, 0)
+    : 0;
   const _step3Total = service === "vps" && selectedVpsPlan
     ? Math.max(0, _vpsPrice - promoDiscount)
-    : Math.max(0, (selectedPlan ? planPrice(selectedPlan, selectedCycle) : 0) + (isDomForceFree ? 0 : (cartDomain?.price ?? 0)) - promoDiscount);
+    : Math.max(0, (selectedPlan ? planPrice(selectedPlan, selectedCycle) : 0) + (isDomForceFree ? 0 : (cartDomain?.price ?? 0)) + _bundleTotal - promoDiscount);
   // Wallet deduction: how much credit will be applied
   const _walletDeducted = applyCredits && creditBalance > 0 ? Math.min(creditBalance, _step3Total) : 0;
   const _remainingAfterWallet = Math.max(0, parseFloat((_step3Total - _walletDeducted).toFixed(2)));
@@ -1083,6 +1114,8 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
     // Price is pre-computed by the caller (0 for free-eligible TLDs, market price otherwise)
     setCartDomain({ fullName: name, price, originalPrice: originalPrice ?? price, mode });
     setDomainMode(mode ?? "register");
+    // Auto-show bundle panel when domain is selected (register mode only)
+    if (mode === "register" && bundleConfig.length > 0) setShowBundlePanel(true);
   }
 
   function handleSidebarContinue() {
@@ -1213,6 +1246,40 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
     },
     onSuccess: async (data) => {
       if (selectedPlan) removeItem(selectedPlan.id);
+
+      // ── Place bundle domain orders after main order succeeds ──────────────
+      if (cartDomain && selectedBundleTlds.size > 0) {
+        const baseName = cartDomain.fullName.includes(".")
+          ? cartDomain.fullName.slice(0, cartDomain.fullName.indexOf("."))
+          : cartDomain.fullName;
+        const bundleEntries = bundleConfig.filter(e => selectedBundleTlds.has(e.tld));
+        if (bundleEntries.length > 0) {
+          setBundleOrdersPlacing(true);
+          // Compute effective payment method same way as mutationFn
+          const isFreeOrd = _step3Total === 0;
+          const effPmId = isFreeOrd ? null : (_remainingAfterWallet === 0 && applyCredits ? "credits" : paymentMethodId ?? null);
+          for (const entry of bundleEntries) {
+            const bundleFull = `${baseName}${entry.tld}`;
+            try {
+              await apiFetch("/api/checkout", {
+                method: "POST",
+                body: JSON.stringify({
+                  domain: bundleFull,
+                  registerDomain: true,
+                  domainAmount: entry.isFree ? 0 : entry.price,
+                  freeDomain: entry.isFree,
+                  paymentMethodId: effPmId,
+                  currencyCode: currency.code,
+                  currencySymbol: currency.symbol,
+                  currencyRate: currency.rate,
+                }),
+              });
+            } catch { /* non-blocking — don't block main order redirect on bundle failure */ }
+          }
+          setBundleOrdersPlacing(false);
+        }
+      }
+
       setCartDomain(null);
 
       // If Safepay was selected, initiate payment and redirect to Safepay hosted checkout
@@ -1685,6 +1752,77 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
             ))}
           </motion.div>
         )}
+
+        {/* ── Ionos Bundle Upsell: same name, different extensions ── */}
+        <AnimatePresence>
+          {cartDomain && bundleConfig.length > 0 && (
+            <motion.div key="bundle-upsell" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
+              className="mt-4 bg-gradient-to-br from-indigo-50 to-purple-50 border-2 border-indigo-200 rounded-2xl overflow-hidden">
+              <div className="px-5 py-3.5 flex items-center gap-3 border-b border-indigo-100">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-indigo-100">
+                  <Globe size={15} style={{ color: P }}/>
+                </div>
+                <div className="flex-1">
+                  <p className="text-[13px] font-bold text-gray-900">🎁 Complete Your Domain Bundle</p>
+                  <p className="text-[11px] text-gray-500">Protect your brand — register the same name across popular extensions.</p>
+                </div>
+                <button onClick={() => setShowBundlePanel(v => !v)}
+                  className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 transition-colors">
+                  {showBundlePanel ? "Hide ▲" : "Show ▼"}
+                </button>
+              </div>
+              {showBundlePanel && (
+                <div className="px-5 py-4 space-y-2">
+                  {bundleConfig.map(entry => {
+                    const baseName = cartDomain.fullName.includes(".")
+                      ? cartDomain.fullName.slice(0, cartDomain.fullName.indexOf("."))
+                      : cartDomain.fullName;
+                    const bundleDomain = `${baseName}${entry.tld}`;
+                    const isSelected = selectedBundleTlds.has(entry.tld);
+                    return (
+                      <div key={entry.tld}
+                        className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border-2 cursor-pointer transition-all ${
+                          isSelected ? "border-indigo-400 bg-white" : "border-gray-200 bg-white/70 hover:border-indigo-200"
+                        }`}
+                        onClick={() => {
+                          setSelectedBundleTlds(prev => {
+                            const next = new Set(prev);
+                            if (next.has(entry.tld)) next.delete(entry.tld);
+                            else next.add(entry.tld);
+                            return next;
+                          });
+                        }}>
+                        <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${
+                          isSelected ? "border-indigo-500 bg-indigo-500" : "border-gray-300"
+                        }`}>
+                          {isSelected && <Check size={11} strokeWidth={3} className="text-white"/>}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-[13px] font-bold text-gray-900">{bundleDomain}</span>
+                        </div>
+                        {entry.isFree ? (
+                          <span className="text-[11px] font-bold text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <Gift size={9}/> FREE
+                          </span>
+                        ) : (
+                          <span className="text-[12px] font-bold text-gray-800">{formatPrice(entry.price)}/yr</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {selectedBundleTlds.size > 0 && (
+                    <div className="pt-2 flex items-center justify-between">
+                      <p className="text-[12px] text-gray-500">
+                        {selectedBundleTlds.size} extension{selectedBundleTlds.size !== 1 ? "s" : ""} selected
+                        {_bundleTotal > 0 ? ` · +${formatPrice(_bundleTotal)}/yr` : " · Free"}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* ── Upsell: "Add hosting?" after domain is added to cart ── */}
         <AnimatePresence>
@@ -2649,6 +2787,70 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
                   </div>
                 );
               })()}
+
+              {/* ── Ionos Bundle Upsell (hosting flow) ── */}
+              {cartDomain && bundleConfig.length > 0 && cartDomain.mode === "register" && (
+                <div className="mt-4 bg-gradient-to-br from-indigo-50 to-purple-50 border-2 border-indigo-200 rounded-2xl overflow-hidden">
+                  <div className="px-5 py-3.5 flex items-center gap-3 border-b border-indigo-100">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-indigo-100">
+                      <Globe size={15} style={{ color: P }}/>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-[13px] font-bold text-gray-900">🎁 Complete Your Domain Bundle</p>
+                      <p className="text-[11px] text-gray-500">Protect your brand across popular extensions with the same name.</p>
+                    </div>
+                    <button onClick={() => setShowBundlePanel(v => !v)}
+                      className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 transition-colors">
+                      {showBundlePanel ? "Hide ▲" : "Show ▼"}
+                    </button>
+                  </div>
+                  {showBundlePanel && (
+                    <div className="px-5 py-4 space-y-2">
+                      {bundleConfig.map(entry => {
+                        const baseName = cartDomain.fullName.includes(".")
+                          ? cartDomain.fullName.slice(0, cartDomain.fullName.indexOf("."))
+                          : cartDomain.fullName;
+                        const bundleDomain = `${baseName}${entry.tld}`;
+                        const isSelected = selectedBundleTlds.has(entry.tld);
+                        return (
+                          <div key={entry.tld}
+                            className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border-2 cursor-pointer transition-all ${
+                              isSelected ? "border-indigo-400 bg-white" : "border-gray-200 bg-white/70 hover:border-indigo-200"
+                            }`}
+                            onClick={() => {
+                              setSelectedBundleTlds(prev => {
+                                const next = new Set(prev);
+                                if (next.has(entry.tld)) next.delete(entry.tld);
+                                else next.add(entry.tld);
+                                return next;
+                              });
+                            }}>
+                            <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${
+                              isSelected ? "border-indigo-500 bg-indigo-500" : "border-gray-300"
+                            }`}>
+                              {isSelected && <Check size={11} strokeWidth={3} className="text-white"/>}
+                            </div>
+                            <span className="flex-1 text-[13px] font-bold text-gray-900">{bundleDomain}</span>
+                            {entry.isFree ? (
+                              <span className="text-[11px] font-bold text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                <Gift size={9}/> FREE
+                              </span>
+                            ) : (
+                              <span className="text-[12px] font-bold text-gray-800">{formatPrice(entry.price)}/yr</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {selectedBundleTlds.size > 0 && (
+                        <p className="text-[12px] text-gray-500 pt-1">
+                          {selectedBundleTlds.size} extension{selectedBundleTlds.size !== 1 ? "s" : ""} selected
+                          {_bundleTotal > 0 ? ` · +${formatPrice(_bundleTotal)}/yr` : " · Free"}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -2855,6 +3057,35 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
                   </div>
                 </div>
               )}
+              {/* ── Bundle domain line items in review ── */}
+              {cartDomain && selectedBundleTlds.size > 0 && (() => {
+                const baseName = cartDomain.fullName.includes(".")
+                  ? cartDomain.fullName.slice(0, cartDomain.fullName.indexOf("."))
+                  : cartDomain.fullName;
+                const selectedEntries = bundleConfig.filter(e => selectedBundleTlds.has(e.tld));
+                if (!selectedEntries.length) return null;
+                return (
+                  <div className="border-t border-indigo-100 bg-indigo-50/40">
+                    <div className="px-5 pt-2 pb-1">
+                      <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">Domain Bundle Add-ons</p>
+                    </div>
+                    {selectedEntries.map(entry => (
+                      <div key={entry.tld} className="flex items-center justify-between px-5 py-2">
+                        <div>
+                          <p className="text-[13px] font-semibold text-gray-800">{baseName}{entry.tld}</p>
+                          <p className="text-[11px] text-gray-400">Domain Registration · 1 Year</p>
+                        </div>
+                        <div className="text-right shrink-0 ml-4">
+                          {entry.isFree
+                            ? <p className="text-[13px] font-extrabold text-green-600">FREE</p>
+                            : <p className="text-[13px] font-extrabold text-gray-900">{formatPrice(entry.price)}</p>
+                          }
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
               {promoApplied && promoDiscount > 0 && (
                 <div className="flex items-center justify-between px-5 py-3 bg-green-50/50">
                   <div className="flex items-center gap-2">
@@ -2972,12 +3203,12 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
                 </div>
               </div>
               <div className="p-5 space-y-3">
-                <a href={`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`}
+                <a href={`/login?next=${encodeURIComponent(window.location.pathname + (window.location.search ? window.location.search + `&_ws=${step}` : `?_ws=${step}`))}`}
                   className="w-full h-12 rounded-xl text-white font-bold text-[14px] flex items-center justify-center gap-2 transition-all hover:brightness-110 active:scale-[0.99]"
                   style={{ background: `linear-gradient(135deg, ${P} 0%, #8B5CF6 100%)`, boxShadow: `0 6px 24px ${P}40` }}>
                   <UserIcon size={15} /> Sign In
                 </a>
-                <a href={`/register?next=${encodeURIComponent(window.location.pathname + window.location.search)}`}
+                <a href={`/register?next=${encodeURIComponent(window.location.pathname + (window.location.search ? window.location.search + `&_ws=${step}` : `?_ws=${step}`))}`}
                   className="w-full h-12 rounded-xl font-bold text-[14px] flex items-center justify-center gap-2 transition-all border-2 hover:bg-gray-50"
                   style={{ color: P, borderColor: P }}>
                   <UserPlus size={15} /> Create Account
