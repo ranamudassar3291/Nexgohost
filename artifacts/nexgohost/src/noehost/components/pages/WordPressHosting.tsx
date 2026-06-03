@@ -58,9 +58,9 @@ const WordPressHosting: React.FC = () => {
   const handleOrderNow = (plan: any) => {
     const planId = plan._planId || plan._raw?.id || plan.id || '';
     if (planId) {
-      window.location.href = `/dashboard/orders/new?plan_id=${planId}`;
+      window.location.href = `/cart/add/${planId}`;
     } else {
-      window.location.href = '/dashboard/orders/new';
+      window.location.href = '/';
     }
   };
 

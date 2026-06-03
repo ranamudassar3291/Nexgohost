@@ -577,12 +577,12 @@ export function AppLayout({ children, role }: LayoutProps) {
 
         <div className="flex items-center gap-1">
           {isClient && (
-            <Link href="/dashboard/orders/new">
+            <Link href="/cart">
               <button
                 className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-bold text-white shadow mr-1"
                 style={{ background: "linear-gradient(135deg, #6B46C1, #8B5CF6)" }}
               >
-                <Plus size={13} />
+                <ShoppingCart size={13} />
                 Order
               </button>
             </Link>
@@ -660,12 +660,12 @@ export function AppLayout({ children, role }: LayoutProps) {
             )}
             {isClient && (
               <>
-                <Link href="/dashboard/orders/new">
+                <Link href="/cart">
                   <button
                     className="flex items-center gap-1.5 h-9 px-4 rounded-xl text-sm font-semibold text-white shadow transition-opacity hover:opacity-90"
                     style={{ background: "linear-gradient(135deg, #6B46C1, #8B5CF6)", boxShadow: "0 4px 14px rgba(107,70,193,0.25)" }}
                   >
-                    <Plus size={15} /> New Order
+                    <ShoppingCart size={15} /> New Order
                   </button>
                 </Link>
                 <NotificationBell />

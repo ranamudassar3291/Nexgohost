@@ -47,14 +47,10 @@ const Pricing: React.FC = () => {
   const handleOrderNow = (p: any) => {
     const raw = p._raw || p;
     setSelectedPlan(null);
-    if (p._isEmail) {
-      window.location.href = raw.id
-        ? `/checkout/email-hosting?plan=${raw.id}`
-        : '/checkout/email-hosting';
+    if (raw.id) {
+      window.location.href = `/cart/add/${raw.id}`;
     } else {
-      window.location.href = raw.id
-        ? `/dashboard/orders/new?plan_id=${raw.id}`
-        : '/dashboard/orders/new';
+      window.location.href = '/';
     }
   };
 

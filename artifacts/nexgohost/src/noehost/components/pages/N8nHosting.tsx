@@ -431,7 +431,7 @@ const N8nHosting: React.FC = () => {
                       </div>
 
                       <button
-                        onClick={() => window.location.href = `/order/vps/${plan.id}`}
+                        onClick={() => window.location.href = `/cart/add/${plan.id}?type=vps`}
                         className="w-full py-3 rounded-xl font-bold text-[14px] text-white mb-7 transition-all hover:opacity-90"
                         style={{
                           background: spec.popular

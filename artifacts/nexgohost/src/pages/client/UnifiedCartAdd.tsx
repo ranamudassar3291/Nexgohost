@@ -21,9 +21,18 @@ export default function UnifiedCartAdd() {
     const cycleHint = (sp.get("cycle") as BillingCycle | null) ?? undefined;
     const domainHint = sp.get("domain") ?? undefined;
 
+    // Handle /cart/add/domain?type=domain_register&domain=example.com
+    // In this case the packageId is the literal word "domain" or a TLD like ".com"
+    // Use the domain query param as the actual lookup ID (TLD extension)
+    const resolvedId = (packageId === "domain" && domainHint)
+      ? `.${domainHint.split(".").pop()}` // extract TLD like ".com" from "example.com"
+      : packageId;
+
     async function lookup() {
       try {
-        const url = `/api/cart/lookup/${encodeURIComponent(packageId!)}${typeHint ? `?type=${typeHint}` : ""}`;
+        const params = new URLSearchParams();
+        if (typeHint) params.set("type", typeHint);
+        const url = `/api/cart/lookup/${encodeURIComponent(resolvedId!)}${params.toString() ? `?${params}` : ""}`;
         const res = await fetch(url);
         const data = await res.json();
         if (!res.ok) { setErrorMsg(data.error || "Product not found"); setStatus("error"); return; }

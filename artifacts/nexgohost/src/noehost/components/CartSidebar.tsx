@@ -63,7 +63,7 @@ const CartSidebar: React.FC = () => {
         ? '/dashboard/domains/transfer'
         : items.some(i => i.type === 'domain')
           ? '/dashboard/domain-search'
-          : '/dashboard/orders/new';
+          : '/cart';
       navigate(`/login?redirect=${encodeURIComponent(returnPath)}`);
       return;
     }

@@ -25,7 +25,7 @@ export const PLANS: PricingPlan[] = [
       'Weekly Backups',
       '24/7 WhatsApp Support'
     ],
-    link: '/dashboard/orders/new'
+    link: '/cart'
   },
   {
     id: 'business',
@@ -48,7 +48,7 @@ export const PLANS: PricingPlan[] = [
       'Daily Backups',
       'Priority 24/7 Support'
     ],
-    link: '/dashboard/orders/new'
+    link: '/cart'
   },
   {
     id: 'enterprise',
@@ -70,7 +70,7 @@ export const PLANS: PricingPlan[] = [
       'Hourly Backups',
       'Dedicated Account Manager'
     ],
-    link: '/dashboard/orders/new'
+    link: '/cart'
   }
 ];
 

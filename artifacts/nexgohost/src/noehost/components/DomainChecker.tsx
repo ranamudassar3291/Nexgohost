@@ -262,7 +262,7 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
       period: String(period),
       price: String(finalPrice),
     });
-    window.location.href = `/order/domain?${params.toString()}`;
+    window.location.href = `/cart/add/${encodeURIComponent('domain')}?type=domain_register&domain=${encodeURIComponent(domainFull)}`;
   };
 
   const POPULAR_TLDS = ['.com', '.net', '.org', '.pk', '.store', '.io', '.co', '.online', '.com.pk', '.net.pk'];
