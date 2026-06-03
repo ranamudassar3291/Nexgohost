@@ -274,8 +274,8 @@ export default function UnifiedCart() {
           billingCycle: item.billingCycle,
           billingPeriod: CYCLE_MONTHS[item.billingCycle],
           promoCode: coupon ? couponInput : undefined,
-          paymentMethodId: selectedPm !== "none" && selectedPm !== "credits" ? selectedPm : undefined,
-          useCredits: selectedPm === "credits",
+          paymentMethodId: selectedPm !== "none" && selectedPm !== "credits" ? selectedPm : (selectedPm === "credits" ? "credits" : undefined),
+          applyCredits: selectedPm === "credits",
           referralCode: referral?.code,
           currencyCode: currency.code,
           currencySymbol: currency.symbol,
@@ -287,10 +287,12 @@ export default function UnifiedCart() {
           body.packageId = item.packageId;
           body.domain = domainForOrder;
           body.registerDomain = item.domainAction === "register" && !!item.domainName;
+          body.transferDomain = item.domainAction === "transfer" && !!item.domainName;
           body.domainAmount = item.domainAction === "register" ? (item.domainPrice ?? 0) : 0;
           body.domainPeriod = item.domainName?.toLowerCase().endsWith(".pk") ? 2 : 1;
         } else if (item.productType === "vps") {
           body.vpsPlanId = item.packageId;
+          body.operatingSystem = vpsOs[item.packageId] ?? VPS_OS[0];
         } else if (item.productType === "email") {
           body.emailPackageId = item.packageId;
         } else if (item.productType === "domain") {
@@ -307,7 +309,7 @@ export default function UnifiedCart() {
             method: "POST",
             body: JSON.stringify({
               package_id: item.packageId,
-              domain_name: item.domainName ?? "",
+              domain_name: emailDomain[item.packageId] ?? item.domainName ?? "",
               billing_cycle: item.billingCycle === "yearly" ? "yearly" : "monthly",
             }),
           });

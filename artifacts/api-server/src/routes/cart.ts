@@ -401,7 +401,7 @@ router.get("/cart/lookup/:packageId", async (req, res) => {
       const tld = packageId.startsWith(".") ? packageId : `.${packageId}`;
       const [ext] = await db.select().from(domainExtensionsTable)
         .where(eq(domainExtensionsTable.extension, tld)).limit(1);
-      if (ext && ext.isActive) {
+      if (ext && ext.status === "active") {
         return res.json({
           packageId: ext.extension,
           packageName: `${ext.extension} Domain`,
@@ -530,7 +530,7 @@ router.post("/cart/validate-coupon", async (req, res) => {
     if (promo.expiresAt && new Date(promo.expiresAt) < new Date()) {
       return res.status(400).json({ error: "Promo code has expired" });
     }
-    if (promo.maxUses && (promo.usedCount ?? 0) >= promo.maxUses) {
+    if (promo.usageLimit && (promo.usedCount ?? 0) >= promo.usageLimit) {
       return res.status(400).json({ error: "Promo code usage limit reached" });
     }
     const discountType = (promo as any).discountType ?? "percent";
