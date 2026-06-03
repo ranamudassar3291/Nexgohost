@@ -77,7 +77,6 @@ import ClientTickets from "@/pages/client/Tickets";
 import ClientTicketDetail from "@/pages/client/TicketDetail";
 import ClientMigrations from "@/pages/client/Migrations";
 import ClientAccount from "@/pages/client/Account";
-import NewOrder from "@/pages/client/NewOrder";
 import Checkout from "@/pages/client/Checkout";
 import Cart from "@/pages/client/Cart";
 import InvoiceDetail from "@/pages/client/InvoiceDetail";
@@ -95,7 +94,6 @@ import DomainSearch from "@/pages/client/DomainSearch";
 import RegisterDomain from "@/pages/client/RegisterDomain";
 import VpsManage from "@/pages/client/VpsManage";
 import VpsManagePage from "@/pages/client/VpsManagePage";
-import VpsOrderPage from "@/pages/client/VpsOrderPage";
 import NoEmailManage from "@/pages/client/NoEmailManage";
 import EmailHostingCheckout from "@/pages/client/EmailHostingCheckout";
 import DomainOrder from "@/pages/client/DomainOrder";
@@ -177,119 +175,59 @@ function HelpPage({ children }: { children: React.ReactNode }) {
   );
 }
 
-// ─── Direct Order-Link wrappers ───────────────────────────────────────────────
-// /order/group/:groupId  — shows only plans in that group (like WHMCS ?gid=1)
-// /order/add/:packageId  — auto-selects plan + skips to domain step (?pid=5)
-// /order/config/index.php?pid=ID — WHMCS-style clean link (reads ?pid query param)
-// All are publicly accessible (allowGuest=true) — auth only required at submit.
+// ─── Legacy order-link wrappers — all redirect to unified /cart ───────────────
+// /order/group/:groupId → browse plans page
 function OrderByGroup() {
-  const { groupId } = useParams<{ groupId: string }>();
-  return <CheckoutLayout allowGuest><NewOrder initialGroupId={groupId}/></CheckoutLayout>;
+  return <Redirect to="/#plans" />;
 }
 
-function OrderByPackage() {
-  const { packageId } = useParams<{ packageId: string }>();
-  return <CheckoutLayout allowGuest><NewOrder initialPackageId={packageId}/></CheckoutLayout>;
-}
-
-// WHMCS-style: /order/config/index.php?pid=UUID
-function OrderByPid() {
-  const pid = new URLSearchParams(window.location.search).get("pid") ?? "";
-  return <CheckoutLayout allowGuest><NewOrder initialPackageId={pid}/></CheckoutLayout>;
-}
-
-// VPS direct-link: /order/vps/:planId — Hostinger-style VPS configure + order page
-function OrderByVpsPlan() {
-  return <VpsOrderPage/>;
-}
-
-// WHMCS-style VPS: /order/config/index.php?vps_id=UUID
-function OrderByVpsId() {
-  const vpsId = new URLSearchParams(window.location.search).get("vps_id") ?? "";
-  if (vpsId) {
-    window.location.replace(`/order/vps/${vpsId}`);
-    return null;
-  }
-  return <CheckoutLayout allowGuest><NewOrder initialVpsPlanId=""/></CheckoutLayout>;
-}
-
-// /buy/:planId  — clean short link: UUID or slug → resolves to NewOrder
-// /order/:slug  — clean short link: plan name slug → resolves to NewOrder
-// Both try the /api/packages/resolve/:slugOrId endpoint for real-time DB lookup.
+// /buy/:planId or /order/:slug → resolve plan UUID then redirect to /cart/add/:id
 function OrderBySlug() {
   const params = useParams<{ slug?: string; planId?: string }>();
   const raw = params.slug ?? params.planId ?? "";
   const [planId, setPlanId] = useState<string | null>(null);
-  const [err, setErr]       = useState("");
+  const [err, setErr] = useState("");
 
   useEffect(() => {
     if (!raw) { setErr("No plan specified"); return; }
     fetch(`/api/packages/resolve/${encodeURIComponent(raw)}`)
       .then(r => r.json())
-      .then(d => {
-        if (d.id) setPlanId(d.id);
-        else { setErr(d.error ?? "Plan not found"); }
-      })
+      .then(d => { if (d.id) setPlanId(d.id); else setErr(d.error ?? "Plan not found"); })
       .catch(() => setErr("Could not connect to server"));
   }, [raw]);
 
-  if (err) return (
-    <CheckoutLayout allowGuest>
-      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-5 text-center px-4">
-        <div className="w-16 h-16 rounded-full bg-red-50 border border-red-100 flex items-center justify-center text-red-400 text-2xl">✕</div>
-        <div>
-          <h2 className="text-xl font-bold text-gray-900 mb-1">Plan Not Found</h2>
-          <p className="text-gray-500 text-sm max-w-sm">{err}. Please browse our available plans and choose one to get started.</p>
-        </div>
-        <a href="/dashboard/orders/new" className="px-6 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition-colors shadow">
-          Browse All Plans →
-        </a>
-      </div>
-    </CheckoutLayout>
-  );
-
+  if (err) return <Redirect to="/" />;
   if (!planId) return (
-    <CheckoutLayout allowGuest>
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-10 h-10 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin mx-auto mb-3" />
-          <p className="text-sm text-gray-400">Loading plan details…</p>
-        </div>
-      </div>
-    </CheckoutLayout>
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="w-10 h-10 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
+    </div>
   );
-
-  return <CheckoutLayout allowGuest><NewOrder initialPackageId={planId} /></CheckoutLayout>;
+  return <Redirect to={`/cart/add/${planId}`} />;
 }
 
+// VPS direct-link → redirect to unified cart with type=vps
+function OrderByVpsPlan() {
+  const { planId } = useParams<{ planId: string }>();
+  return <Redirect to={`/cart/add/${planId}?type=vps`} />;
+}
+
+// /dashboard/orders/new and WHMCS-style links → unified cart
 function ClientOrdersNewRedirect() {
   const params = new URLSearchParams(window.location.search);
   const pid   = params.get("pid")    ?? params.get("plan_id") ?? "";
-  const gid   = params.get("gid")    ?? "";
   const vpsId = params.get("vps_id") ?? "";
-
-  if (pid)   return <CheckoutLayout allowGuest><NewOrder initialPackageId={pid}/></CheckoutLayout>;
-  if (gid)   return <CheckoutLayout allowGuest><NewOrder initialGroupId={gid}/></CheckoutLayout>;
-  if (vpsId) return <CheckoutLayout allowGuest><NewOrder initialVpsPlanId={vpsId}/></CheckoutLayout>;
-  // No params — render the full order wizard (no redirect loop)
-  return <CheckoutLayout allowGuest><NewOrder /></CheckoutLayout>;
+  if (pid)   return <Redirect to={`/cart/add/${pid}`} />;
+  if (vpsId) return <Redirect to={`/cart/add/${vpsId}?type=vps`} />;
+  return <Redirect to="/" />;
 }
 
-// /cart — redirect to unified checkout
+// /cart (WHMCS-style with query params) → unified cart
 function CartRedirect() {
   const params = new URLSearchParams(window.location.search);
-  const pid    = params.get("pid")  ?? "";
-  const gid    = params.get("gid")  ?? "";
-  const action = params.get("a")    ?? "";
-
-  // Keep backward-compat WHMCS-style links working
-  if (action === "add" && pid) {
-    return <CheckoutLayout allowGuest><NewOrder initialPackageId={pid}/></CheckoutLayout>;
-  }
-  if (gid) {
-    return <CheckoutLayout allowGuest><NewOrder initialGroupId={gid}/></CheckoutLayout>;
-  }
-  return <Redirect to="/dashboard/orders/new" />;
+  const pid    = params.get("pid") ?? "";
+  const action = params.get("a")   ?? "";
+  if (action === "add" && pid) return <Redirect to={`/cart/add/${pid}`} />;
+  return <Redirect to="/cart" />;
 }
 
 // ─── API Health Wrapper ────────────────────────────────────────────────────────
@@ -645,10 +583,23 @@ function RouterRoot() {
         {() => { const { packageId } = useParams<{ packageId: string }>(); window.location.replace(`/cart/add/${packageId}`); return null; }}
       </Route>
       {/* WHMCS-style clean URL: /order/config/index.php?pid=UUID */}
-      <Route path="/order/config/index.php" component={OrderByPid}/>
-      {/* VPS direct links: /order/vps/:planId and ?vps_id=UUID */}
+      <Route path="/order/config/index.php">
+        {() => {
+          const pid = new URLSearchParams(window.location.search).get("pid") ?? "";
+          const vpsId = new URLSearchParams(window.location.search).get("vps_id") ?? "";
+          if (pid) return <Redirect to={`/cart/add/${pid}`} />;
+          if (vpsId) return <Redirect to={`/cart/add/${vpsId}?type=vps`} />;
+          return <Redirect to="/" />;
+        }}
+      </Route>
+      {/* VPS direct links → unified cart */}
       <Route path="/order/vps/:planId" component={OrderByVpsPlan}/>
-      <Route path="/order/vps" component={OrderByVpsId}/>
+      <Route path="/order/vps">
+        {() => {
+          const vpsId = new URLSearchParams(window.location.search).get("vps_id") ?? "";
+          return vpsId ? <Redirect to={`/cart/add/${vpsId}?type=vps`} /> : <Redirect to="/" />;
+        }}
+      </Route>
       {/* /order/:slug — slug-based clean short link (AFTER specific /order/* routes) */}
       <Route path="/order/:slug" component={OrderBySlug}/>
       {/* /cart — Unified cart & checkout (Hostinger-style) */}

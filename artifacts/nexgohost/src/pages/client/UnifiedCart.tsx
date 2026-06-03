@@ -101,6 +101,13 @@ export default function UnifiedCart() {
   const [domainAvail, setDomainAvail] = useState<Record<string, "available" | "taken" | null>>({});
   const domainTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
+  // VPS OS selector per item
+  const VPS_OS = ["Ubuntu 22.04 LTS", "Ubuntu 20.04 LTS", "Debian 12", "CentOS Stream 9", "AlmaLinux 9", "Rocky Linux 9", "Windows Server 2022"];
+  const [vpsOs, setVpsOs] = useState<Record<string, string>>({});
+
+  // Email mailbox config per item
+  const [emailDomain, setEmailDomain] = useState<Record<string, string>>({});
+
   const [selectedPm, setSelectedPm] = useState<string>("none");
   const [placing, setPlacing] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
@@ -334,27 +341,15 @@ export default function UnifiedCart() {
     } finally { setPlacing(false); }
   }
 
-  // ── Empty cart ─────────────────────────────────────────────────────────────
+  // ── Empty cart → redirect to homepage ─────────────────────────────────────
   if (items.length === 0) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-6 px-4">
-        <div className="w-20 h-20 rounded-2xl bg-white border border-gray-200 shadow-sm flex items-center justify-center">
-          <ShoppingCart size={32} className="text-gray-400" />
-        </div>
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Your cart is empty</h2>
-          <p className="text-gray-500">Add a hosting plan to get started.</p>
-        </div>
-        <a href="/" className="flex items-center gap-2 px-6 py-3 rounded-xl text-white font-semibold text-sm transition-all hover:brightness-110 shadow-lg"
-          style={{ background: G }}>
-          <Package size={16} /> Browse Plans
-        </a>
-      </div>
-    );
+    window.location.replace("/");
+    return null;
   }
 
   const hostingItem = items.find(i => i.productType === "hosting");
-  const hasDomainStep = items.some(i => i.productType === "hosting");
+  // Config step appears when cart has hosting, VPS, or email items
+  const hasDomainStep = items.some(i => ["hosting", "vps", "email"].includes(i.productType));
   const selectedPmObj = paymentMethods.find(p => p.id === selectedPm);
   const isManual = selectedPmObj && !["safepay", "stripe", "rapidgateway"].includes(selectedPmObj.type);
 
@@ -488,10 +483,10 @@ export default function UnifiedCart() {
               </AnimatePresence>
             </div>
 
-            {/* ── STEP 2: Domain (hosting items only) ──────────────────────── */}
+            {/* ── STEP 2: Configure (domain/OS/mailbox) ────────────────────── */}
             {hasDomainStep && (
               <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-                <StepHeader num={2} label="Domain" active={step === "domain"} done={step === "account" || step === "payment"} onClick={() => setStep("domain")} />
+                <StepHeader num={2} label="Configure" active={step === "domain"} done={step === "account" || step === "payment"} onClick={() => setStep("domain")} />
                 <AnimatePresence>
                   {step === "domain" && (
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
@@ -514,8 +509,9 @@ export default function UnifiedCart() {
                                 </p>
                                 <div className="space-y-2">
                                   {[
-                                    { value: "register", label: "Register new domain" },
-                                    { value: "skip", label: "I already have a domain / I'll add it later" },
+                                    { value: "register", label: "Register a new domain" },
+                                    { value: "transfer", label: "Transfer an existing domain to us" },
+                                    { value: "skip", label: "I'll use my own domain / add later" },
                                   ].map(opt => (
                                     <label key={opt.value} className="flex items-center gap-3 cursor-pointer">
                                       <input type="radio" name={`domain-step-${item.packageId}`}
@@ -526,6 +522,22 @@ export default function UnifiedCart() {
                                     </label>
                                   ))}
                                 </div>
+                                {(item.domainAction === "transfer") && (
+                                  <div>
+                                    <div className="relative">
+                                      <Globe size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                      <input type="text" value={domainInput}
+                                        onChange={e => {
+                                          const v = e.target.value;
+                                          setDomainInputs(p => ({ ...p, [item.packageId]: v }));
+                                          updateDomain(item.packageId, v, "transfer", 0);
+                                        }}
+                                        placeholder="yourdomain.com"
+                                        className="w-full pl-8 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" />
+                                    </div>
+                                    <p className="text-xs text-amber-600 mt-1.5">You'll need your domain's EPP/Auth code to complete the transfer.</p>
+                                  </div>
+                                )}
                                 {item.domainAction === "register" && (
                                   <div>
                                     <div className="relative">
@@ -560,6 +572,49 @@ export default function UnifiedCart() {
                             </div>
                           );
                         })}
+                        {/* VPS OS selector */}
+                        {items.filter(i => i.productType === "vps").map(item => (
+                          <div key={item.packageId} className="border border-gray-200 rounded-xl p-4 space-y-3">
+                            <p className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                              <Server size={14} className="text-primary" /> {item.packageName} — Operating System
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {VPS_OS.map(os => (
+                                <label key={os} className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer text-sm transition-all ${
+                                  (vpsOs[item.packageId] ?? VPS_OS[0]) === os
+                                    ? "border-primary bg-primary/5 text-primary font-semibold"
+                                    : "border-gray-200 text-gray-600 hover:border-gray-300"
+                                }`}>
+                                  <input type="radio" name={`vps-os-${item.packageId}`}
+                                    className="sr-only"
+                                    checked={(vpsOs[item.packageId] ?? VPS_OS[0]) === os}
+                                    onChange={() => setVpsOs(p => ({ ...p, [item.packageId]: os }))} />
+                                  {os}
+                                </label>
+                              ))}
+                            </div>
+                            <p className="text-xs text-gray-400">You can reinstall the OS anytime from your control panel.</p>
+                          </div>
+                        ))}
+
+                        {/* Email mailbox domain config */}
+                        {items.filter(i => i.productType === "email").map(item => (
+                          <div key={item.packageId} className="border border-gray-200 rounded-xl p-4 space-y-3">
+                            <p className="text-sm font-bold text-gray-700 flex items-center gap-2">
+                              <Globe size={14} className="text-primary" /> {item.packageName} — Email Domain
+                            </p>
+                            <div className="relative">
+                              <Globe size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                              <input type="text"
+                                value={emailDomain[item.packageId] ?? ""}
+                                onChange={e => setEmailDomain(p => ({ ...p, [item.packageId]: e.target.value }))}
+                                placeholder="yourdomain.com"
+                                className="w-full pl-8 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" />
+                            </div>
+                            <p className="text-xs text-gray-400">Enter the domain you want email addresses set up on (e.g. you@yourdomain.com).</p>
+                          </div>
+                        ))}
+
                         <button
                           onClick={() => {
                             if (isLoggedIn) { setStep("payment"); }
