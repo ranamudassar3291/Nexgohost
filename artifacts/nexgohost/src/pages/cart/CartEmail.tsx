@@ -79,7 +79,7 @@ export default function CartEmail() {
   const { formatPrice } = useCurrency();
 
   const [step, setStep] = useState<"plan" | "domain" | "payment">("plan");
-  const [plans] = useState<EmailPlan[]>(DEFAULT_EMAIL_PLANS);
+  const [plans, setPlans] = useState<EmailPlan[]>(DEFAULT_EMAIL_PLANS);
   const [selectedPlan, setSelectedPlan] = useState<EmailPlan | null>(DEFAULT_EMAIL_PLANS[1]);
   const [cycle, setCycle] = useState<Cycle>("yearly");
   const [mailboxQty, setMailboxQty] = useState(1);
@@ -96,6 +96,30 @@ export default function CartEmail() {
   const [creditBalance, setCreditBalance] = useState(0);
   const [placing, setPlacing] = useState(false);
 
+  // Fetch real email packages from backend; fall back to static defaults if empty
+  useEffect(() => {
+    fetch("/api/email-packages").then(r => r.json()).then((rows: any[]) => {
+      if (Array.isArray(rows) && rows.length > 0) {
+        const mapped: EmailPlan[] = rows.map(r => ({
+          id: r.id,
+          name: r.name,
+          price: parseFloat(r.price) || 0,
+          yearlyPrice: r.yearly_price ? parseFloat(r.yearly_price) : (parseFloat(r.price) || 0) * 10,
+          quarterlyPrice: r.quarterly_price ? parseFloat(r.quarterly_price) : (parseFloat(r.price) || 0) * 2.7,
+          semiannualPrice: r.semiannual_price ? parseFloat(r.semiannual_price) : (parseFloat(r.price) || 0) * 5,
+          mailboxes: r.max_mailboxes || 5,
+          storageGb: r.max_storage_gb || 5,
+          aliases: 10,
+          features: ["Webmail Access", "Spam Filter", "IMAP/POP3/SMTP", "Mobile Sync"],
+          description: r.description || "",
+          isPopular: r.is_popular || false,
+        }));
+        setPlans(mapped);
+        setSelectedPlan(mapped.find(p => p.isPopular) || mapped[0]);
+      }
+    }).catch(() => {});
+  }, []);
+
   // Restore pre-login cart state on mount
   useEffect(() => {
     try {
@@ -104,7 +128,7 @@ export default function CartEmail() {
         const s = JSON.parse(saved);
         localStorage.removeItem("cart_email_state");
         if (s.planId) {
-          const plan = DEFAULT_EMAIL_PLANS.find(p => String(p.id) === String(s.planId));
+          const plan = plans.find(p => String(p.id) === String(s.planId));
           if (plan) setSelectedPlan(plan);
         }
         if (s.cycle) setCycle(s.cycle);
@@ -113,7 +137,7 @@ export default function CartEmail() {
         if (s.promoCode) setPromoCode(s.promoCode);
       }
     } catch {}
-  }, []);
+  }, [plans]);
 
   useEffect(() => {
     if (step === "payment") {
@@ -154,18 +178,13 @@ export default function CartEmail() {
     if (!selectedPm && !applyCredits) { toast({ title: "Select a payment method", variant: "destructive" }); return; }
     setPlacing(true);
     try {
-      const body: any = {
-        packageId: selectedPlan!.id,
-        billingCycle: CYCLE_MONTHS[cycle],
-        billingCycleLabel: cycle,
-        domain: domainName,
-        mailboxQuantity: mailboxQty,
-        paymentMethodId: selectedPm || undefined,
-        applyCredits,
-        notes: `Business Email: ${selectedPlan!.name} · ${mailboxQty} mailbox${mailboxQty > 1 ? "es" : ""} · ${domainName}`,
-      };
-      if (promoApplied) body.promoCode = promoCode;
-      const d = await apiFetch("/api/checkout", { method: "POST", body: JSON.stringify(body) });
+      // Use dedicated email order endpoint — supports real admin_email_packages IDs
+      const emailCycle = cycle === "yearly" ? "yearly" : "monthly";
+      const d = await apiFetch("/api/my/email-orders", { method: "POST", body: JSON.stringify({
+        package_id: selectedPlan!.id,
+        domain_name: domainName,
+        billing_cycle: emailCycle,
+      }) });
       // Generic payment gateway routing: SafePay, RapidGateway, then manual invoice
       const pm = paymentMethods.find(p => p.id === selectedPm);
       if (d.invoiceId && pm) {

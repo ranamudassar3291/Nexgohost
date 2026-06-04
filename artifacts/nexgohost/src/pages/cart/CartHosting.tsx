@@ -294,8 +294,7 @@ export default function CartHosting() {
     try {
       const body: any = {
         packageId: selectedPlan!.id,
-        billingCycle: CYCLE_MONTHS[cycle],
-        billingCycleLabel: cycle,
+        billingCycle: cycle,
         paymentMethodId: selectedPm || undefined,
         applyCredits,
       };

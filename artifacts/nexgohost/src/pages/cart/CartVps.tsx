@@ -205,8 +205,7 @@ export default function CartVps() {
     try {
       const body: any = {
         vpsPlanId: selectedPlan!.id,
-        billingCycleLabel: cycle,
-        billingCycle: CYCLE_MONTHS[cycle],
+        billingCycle: cycle,
         vpsOsTemplate: selectedOs?.name,
         vpsLocation: selectedLocation?.countryName,
         vpsHostname: hostname,

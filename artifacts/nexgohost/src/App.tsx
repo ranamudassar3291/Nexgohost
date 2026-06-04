@@ -593,17 +593,17 @@ function RouterRoot() {
         {() => {
           const pid = new URLSearchParams(window.location.search).get("pid") ?? "";
           const vpsId = new URLSearchParams(window.location.search).get("vps_id") ?? "";
-          if (pid) return <Redirect to={`/cart/add/${pid}`} />;
-          if (vpsId) return <Redirect to={`/cart/add/${vpsId}?type=vps`} />;
-          return <Redirect to="/" />;
+          if (vpsId) return <Redirect to={`/cart/vps?planId=${vpsId}`} />;
+          if (pid) return <Redirect to={`/cart/hosting?planId=${pid}`} />;
+          return <Redirect to="/cart/hosting" />;
         }}
       </Route>
-      {/* VPS direct links → unified cart */}
+      {/* VPS direct links → dedicated VPS cart */}
       <Route path="/order/vps/:planId" component={OrderByVpsPlan}/>
       <Route path="/order/vps">
         {() => {
           const vpsId = new URLSearchParams(window.location.search).get("vps_id") ?? "";
-          return vpsId ? <Redirect to={`/cart/add/${vpsId}?type=vps`} /> : <Redirect to="/" />;
+          return vpsId ? <Redirect to={`/cart/vps?planId=${vpsId}`} /> : <Redirect to="/cart/vps" />;
         }}
       </Route>
       {/* /order/:slug — slug-based clean short link (AFTER specific /order/* routes) */}
@@ -618,7 +618,7 @@ function RouterRoot() {
       <Route path="/cart/add/:packageId"><UnifiedCartAdd /></Route>
       <Route path="/cart"><UnifiedCart /></Route>
 
-      <Route path="/dashboard/orders/new"><Redirect to="/" /></Route>
+      <Route path="/dashboard/orders/new" component={ClientOrdersNewRedirect} />
       <Route path="/dashboard/orders">
         <ClientPage><ClientOrders /></ClientPage>
       </Route>
