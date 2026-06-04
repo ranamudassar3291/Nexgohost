@@ -526,7 +526,7 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo>
 
   for (const fmt of fmts) {
     const keyVariant = getKeyForFormat(cleanKey, fmt);
-    const token = encodeKeyToBase64(keyVariant);
+    const token = encodeKeyForBearer(keyVariant);
     const t0 = Date.now();
     let status: number | null = null;
     let body = "";
@@ -586,7 +586,7 @@ export async function twentyiRawDebug(apiKey: string): Promise<TwentyIDebugInfo>
   }
 
   const generalKey = getKeyForFormat(cleanKey, detectedFmt);
-  const base64Token = encodeKeyToBase64(generalKey);
+  const base64Token = encodeKeyForBearer(generalKey);
   const workingFmt = (ws !== null && ws !== 401) ? detectedFmt : "none";
 
   console.log(
@@ -657,7 +657,7 @@ export async function twentyiTestConnection(apiKey: string): Promise<TwentyIConn
     url: packageUrl,
     headers: {
       // /package uses no-newline encoding (OAuthKey/StackCP convention)
-      Authorization: `Bearer ${encodeKeyToBase64(detected.authKey, false)}`,
+      Authorization: `Bearer ${encodeKeyForBearer(detected.authKey)}`,
       "Content-Type": "application/json",
       Accept: "application/json",
       "User-Agent": "Nexgohost-Platform/1.0",

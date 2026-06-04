@@ -664,25 +664,95 @@ router.get("/auth/google/callback", async (req, res) => {
       }
     }
 
-    const googleUser = {
-      sub: userInfo.id || userInfo.sub,
-      email: userInfo.email,
-      name: userInfo.name || userInfo.email,
-      given_name: userInfo.given_name,
-      family_name: userInfo.family_name,
-    };
+    const googleEmail = (userInfo.email as string).toLowerCase().trim();
+    const googleFirstName = userInfo.given_name || (userInfo.name || "").split(" ")[0] || "User";
+    const googleLastName = userInfo.family_name || (userInfo.name || "").split(" ").slice(1).join(" ") || "";
+    const googleSub = userInfo.id || userInfo.sub;
 
-    const user = await findOrCreateGoogleUser(googleUser);
+    // Look up existing user
+    let [existingUser] = await db.select().from(usersTable).where(eq(usersTable.email, googleEmail)).limit(1);
 
-    if (user.status === "suspended") {
-      await logAuthEvent({ userId: user.id, email: user.email, action: "google_callback", method: "google", status: "blocked", ipAddress: ip, userAgent: ua, details: "Account suspended" });
+    if (!existingUser) {
+      // ── NEW Google user ────────────────────────────────────────────────────
+      const verificationRequired = await isEmailVerificationEnabled();
+      const verCode = verificationRequired ? makeVerificationCode() : null;
+      const verExpiry = verCode ? new Date(Date.now() + 10 * 60 * 1000) : null;
+
+      const [newUser] = await db.insert(usersTable).values({
+        email: googleEmail,
+        firstName: googleFirstName,
+        lastName: googleLastName,
+        passwordHash: await hashPassword(crypto.randomUUID()),
+        role: "client",
+        status: "active",
+        emailVerified: !verificationRequired,
+        googleId: googleSub,
+        verificationCode: verCode,
+        verificationExpiresAt: verExpiry,
+      } as any).returning();
+
+      await logAuthEvent({ userId: newUser.id, email: newUser.email, action: "google_register", method: "google", status: "success", ipAddress: ip, userAgent: ua });
+
+      if (verificationRequired && verCode) {
+        // Send verification email (non-blocking)
+        emailVerificationCode(newUser.email, newUser.firstName, verCode, { clientId: newUser.id }).catch((e: any) =>
+          console.error("[AUTH] Google new-user verification email failed:", e.message));
+
+        // Temp token for verification step
+        const tempToken = signToken({ userId: newUser.id, role: "client", email: newUser.email, adminPermission: undefined });
+        res.redirect(
+          `${frontendBase}/google-callback?requiresVerification=true` +
+          `&tempToken=${encodeURIComponent(tempToken)}` +
+          `&firstName=${encodeURIComponent(newUser.firstName || "")}` +
+          `&email=${encodeURIComponent(newUser.email)}`
+        );
+        return;
+      }
+
+      // No verification needed — log in directly
+      const jwt = signToken({ userId: newUser.id, role: "client", email: newUser.email, adminPermission: undefined });
+      res.redirect(`${frontendBase}/google-callback?token=${encodeURIComponent(jwt)}&firstName=${encodeURIComponent(newUser.firstName || "")}`);
+      return;
+    }
+
+    // ── EXISTING user ────────────────────────────────────────────────────────
+    if (!existingUser.googleId) {
+      await db.update(usersTable)
+        .set({ googleId: googleSub, emailVerified: true, updatedAt: new Date() })
+        .where(eq(usersTable.id, existingUser.id));
+      existingUser = { ...existingUser, googleId: googleSub, emailVerified: true };
+    }
+
+    if (existingUser.status === "suspended") {
+      await logAuthEvent({ userId: existingUser.id, email: existingUser.email, action: "google_callback", method: "google", status: "blocked", ipAddress: ip, userAgent: ua, details: "Account suspended" });
       res.redirect(`${frontendBase}/login?error=account_suspended`);
       return;
     }
 
-    const jwt = signToken({ userId: user.id, role: user.role, email: user.email ?? "", adminPermission: user.adminPermission ?? undefined });
-    await logAuthEvent({ userId: user.id, email: user.email, action: "google_callback", method: "google", status: "success", ipAddress: ip, userAgent: ua });
-    res.redirect(`${frontendBase}/google-callback?token=${encodeURIComponent(jwt)}&firstName=${encodeURIComponent(user.firstName || "")}`);
+    const jwt = signToken({ userId: existingUser.id, role: existingUser.role, email: existingUser.email ?? "", adminPermission: existingUser.adminPermission ?? undefined });
+    await logAuthEvent({ userId: existingUser.id, email: existingUser.email, action: "google_callback", method: "google", status: "success", ipAddress: ip, userAgent: ua });
+
+    // Login alert for existing users — non-blocking
+    if (existingUser.role === "client") {
+      const now = new Date();
+      const deviceStr = (() => {
+        if (ua.includes("Mobile")) return ua.includes("iPhone") ? "iPhone / Safari" : "Android / Chrome";
+        if (ua.includes("Windows")) return "Windows / " + (ua.includes("Chrome") ? "Chrome" : ua.includes("Firefox") ? "Firefox" : "Browser");
+        if (ua.includes("Mac")) return "Mac / " + (ua.includes("Safari") ? "Safari" : ua.includes("Chrome") ? "Chrome" : "Browser");
+        return ua.slice(0, 60) || "Unknown";
+      })();
+      const loginDate = now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+      const loginTime = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Karachi" }) + " PKT";
+      emailLoginAlert(existingUser.email, {
+        clientName: `${existingUser.firstName} ${existingUser.lastName || ""}`.trim(),
+        ip: ip || "Unknown",
+        device: `${deviceStr} (via Google)`,
+        loginTime,
+        loginDate,
+      }, { clientId: existingUser.id }).catch(() => {});
+    }
+
+    res.redirect(`${frontendBase}/google-callback?token=${encodeURIComponent(jwt)}&firstName=${encodeURIComponent(existingUser.firstName || "")}`);
   } catch (err: any) {
     console.error("[AUTH] Google callback error:", err.message);
     await logAuthEvent({ email: "unknown", action: "google_callback", method: "google", status: "error", ipAddress: ip, userAgent: ua, details: err.message });
