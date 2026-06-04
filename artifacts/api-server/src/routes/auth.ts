@@ -422,8 +422,31 @@ router.post("/auth/2fa/verify", authenticate, async (req: AuthRequest, res) => {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
     if (!user || !user.twoFactorSecret) { res.status(400).json({ error: "2FA not configured" }); return; }
     const valid = await _otpVerify(totp, user.twoFactorSecret!);
-    if (!valid) { res.status(401).json({ error: "Invalid authenticator code" }); return; }
+    if (!valid) {
+      logActivity(user.id, "login_failed", req, "failed", "Invalid 2FA code", user.email, "Login attempt failed — invalid 2FA code").catch(() => {});
+      res.status(401).json({ error: "Invalid authenticator code" }); return;
+    }
     const token = signToken({ userId: user.id, role: user.role, email: user.email, adminPermission: user.adminPermission ?? undefined });
+    logActivity(user.id, "login_success", req, "success", undefined, user.email, "Successful login via 2FA").catch(() => {});
+    // Login alert — non-blocking
+    if (user.role === "client") {
+      const ip2fa = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket?.remoteAddress || req.ip || "Unknown";
+      const ua2fa = req.headers["user-agent"] || "";
+      const now = new Date();
+      const deviceStr = (() => {
+        if (ua2fa.includes("Mobile")) return ua2fa.includes("iPhone") ? "iPhone / Safari" : "Android / Chrome";
+        if (ua2fa.includes("Windows")) return "Windows / " + (ua2fa.includes("Chrome") ? "Chrome" : ua2fa.includes("Firefox") ? "Firefox" : "Browser");
+        if (ua2fa.includes("Mac")) return "Mac / " + (ua2fa.includes("Safari") ? "Safari" : ua2fa.includes("Chrome") ? "Chrome" : "Browser");
+        return ua2fa.slice(0, 60) || "Unknown";
+      })();
+      emailLoginAlert(user.email, {
+        clientName: `${user.firstName} ${user.lastName || ""}`.trim(),
+        ip: ip2fa,
+        device: deviceStr,
+        loginTime: now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Karachi" }) + " PKT",
+        loginDate: now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" }),
+      }, { clientId: user.id }).catch(() => {});
+    }
     res.json({ token, user: formatUser(user) });
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
@@ -740,15 +763,39 @@ router.get("/auth/google/callback", async (req, res) => {
 
     // ── EXISTING user ────────────────────────────────────────────────────────
     if (!existingUser.googleId) {
+      // Link Google ID only — do NOT force emailVerified (let verification gate apply)
       await db.update(usersTable)
-        .set({ googleId: googleSub, emailVerified: true, updatedAt: new Date() })
+        .set({ googleId: googleSub, updatedAt: new Date() })
         .where(eq(usersTable.id, existingUser.id));
-      existingUser = { ...existingUser, googleId: googleSub, emailVerified: true };
+      existingUser = { ...existingUser, googleId: googleSub };
     }
 
     if (existingUser.status === "suspended") {
       await logAuthEvent({ userId: existingUser.id, email: existingUser.email, action: "google_callback", method: "google", status: "blocked", ipAddress: ip, userAgent: ua, details: "Account suspended" });
       res.redirect(`${frontendBase}/login?error=account_suspended`);
+      return;
+    }
+
+    // Gate: if email verification is enabled and user not yet verified, send to verify
+    const verificationEnabled2 = await isEmailVerificationEnabled();
+    if (verificationEnabled2 && !existingUser.emailVerified && existingUser.role === "client") {
+      // Ensure a verification code exists
+      if (!existingUser.verificationCode || !existingUser.verificationExpiresAt || existingUser.verificationExpiresAt < new Date()) {
+        const code = makeVerificationCode();
+        await db.update(usersTable).set({
+          verificationCode: code, verificationExpiresAt: new Date(Date.now() + 10 * 60 * 1000), updatedAt: new Date(),
+        }).where(eq(usersTable.id, existingUser.id));
+        existingUser = { ...existingUser, verificationCode: code };
+        emailVerificationCode(existingUser.email, existingUser.firstName, code, { clientId: existingUser.id }).catch(() => {});
+      }
+      const tempToken = signVerificationToken(existingUser.id, existingUser.email ?? "");
+      await logAuthEvent({ userId: existingUser.id, email: existingUser.email, action: "google_callback", method: "google", status: "pending", ipAddress: ip, userAgent: ua, details: "Email verification required" });
+      res.redirect(
+        `${frontendBase}/google-callback?requiresVerification=true` +
+        `&tempToken=${encodeURIComponent(tempToken)}` +
+        `&firstName=${encodeURIComponent(existingUser.firstName || "")}` +
+        `&email=${encodeURIComponent(existingUser.email ?? "")}`
+      );
       return;
     }
 
@@ -836,23 +883,57 @@ router.post("/auth/google", async (req, res) => {
     let [user] = await db.select().from(usersTable).where(eq(usersTable.email, googleUser.email)).limit(1);
 
     if (!user) {
-      // Create new client account — Google has already verified the email
+      // Check if email verification is required before creating the account
+      const googleVerRequired = await isEmailVerificationEnabled();
+      const googleVerCode = googleVerRequired ? makeVerificationCode() : null;
+      const googleVerExpiry = googleVerCode ? new Date(Date.now() + 10 * 60 * 1000) : null;
+
       const [newUser] = await db.insert(usersTable).values({
         email: googleUser.email,
         firstName: googleUser.given_name || googleUser.name.split(" ")[0] || "User",
         lastName: googleUser.family_name || googleUser.name.split(" ").slice(1).join(" ") || "",
-        passwordHash: await hashPassword(crypto.randomUUID()), // unusable password — login via Google
-        role: requestedRole === "admin" ? "client" : "client", // Google users always start as clients
+        passwordHash: await hashPassword(crypto.randomUUID()),
+        role: "client",
         status: "active",
-        emailVerified: true, // Google already verified the email
+        emailVerified: !googleVerRequired, // only mark verified if verification is disabled
         googleId: googleUser.sub,
-      }).returning();
+        verificationCode: googleVerCode,
+        verificationExpiresAt: googleVerExpiry,
+      } as any).returning();
       user = newUser;
-      console.log(`[AUTH] New Google user created: ${user.email}`);
+      console.log(`[AUTH] New Google user created: ${user.email} (verified=${!googleVerRequired})`);
+
+      if (googleVerRequired && googleVerCode) {
+        // Send verification email and return scoped token
+        emailVerificationCode(user.email, user.firstName, googleVerCode, { clientId: user.id }).catch((e: any) =>
+          console.error("[AUTH] POST /auth/google verification email failed:", e.message));
+        await logAuthEvent({ userId: user.id, email: user.email, action: "google_register", method: "google", status: "pending", ipAddress: ip, userAgent: ua, details: "Verification required" });
+        const tempToken = signVerificationToken(user.id, user.email);
+        res.json({ requiresVerification: true, tempToken, email: user.email,
+          user: { id: user.id, firstName: user.firstName, email: user.email, role: user.role } });
+        return;
+      }
     } else if (!user.googleId) {
-      // Link Google account to existing user
-      await db.update(usersTable).set({ googleId: googleUser.sub, emailVerified: true, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
-      user = { ...user, googleId: googleUser.sub, emailVerified: true };
+      // Link Google ID only — do NOT force emailVerified (let verification gate apply)
+      await db.update(usersTable).set({ googleId: googleUser.sub, updatedAt: new Date() }).where(eq(usersTable.id, user.id));
+      user = { ...user, googleId: googleUser.sub };
+    }
+
+    // Gate: existing (or newly-created, verified) user — check emailVerified
+    const postGoogleVerEnabled = await isEmailVerificationEnabled();
+    if (postGoogleVerEnabled && !user.emailVerified && user.role === "client") {
+      if (!user.verificationCode || !user.verificationExpiresAt || (user.verificationExpiresAt as Date) < new Date()) {
+        const code = makeVerificationCode();
+        await db.update(usersTable).set({
+          verificationCode: code, verificationExpiresAt: new Date(Date.now() + 10 * 60 * 1000), updatedAt: new Date(),
+        }).where(eq(usersTable.id, user.id));
+        user = { ...user, verificationCode: code };
+        emailVerificationCode(user.email, user.firstName, code, { clientId: user.id }).catch(() => {});
+      }
+      const tempToken = signVerificationToken(user.id, user.email);
+      res.status(403).json({ requiresVerification: true, tempToken, email: user.email,
+        message: "Please verify your email before signing in." });
+      return;
     }
 
     if (user.status === "suspended" || user.status === "banned") {
