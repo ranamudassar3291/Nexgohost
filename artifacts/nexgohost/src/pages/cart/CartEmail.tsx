@@ -96,6 +96,25 @@ export default function CartEmail() {
   const [creditBalance, setCreditBalance] = useState(0);
   const [placing, setPlacing] = useState(false);
 
+  // Restore pre-login cart state on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("cart_email_state");
+      if (saved) {
+        const s = JSON.parse(saved);
+        localStorage.removeItem("cart_email_state");
+        if (s.planId) {
+          const plan = DEFAULT_EMAIL_PLANS.find(p => String(p.id) === String(s.planId));
+          if (plan) setSelectedPlan(plan);
+        }
+        if (s.cycle) setCycle(s.cycle);
+        if (s.mailboxQty) setMailboxQty(Number(s.mailboxQty));
+        if (s.domainName) setDomainName(s.domainName);
+        if (s.promoCode) setPromoCode(s.promoCode);
+      }
+    } catch {}
+  }, []);
+
   useEffect(() => {
     if (step === "payment") {
       setPmLoading(true);

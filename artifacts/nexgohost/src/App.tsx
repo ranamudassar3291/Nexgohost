@@ -264,8 +264,8 @@ function RouterRoot() {
       <Route path="/forget-password"  component={ForgotPassword}  />
       <Route path="/reset-password"   component={ResetPassword}   />
       <Route path="/vps"              component={VpsHosting}      />
-      {/* /order root → unified checkout */}
-      <Route path="/order"><Redirect to="/dashboard/orders/new" /></Route>
+      {/* /order root → hosting cart (marketing & backward-compat link) */}
+      <Route path="/order"><Redirect to="/cart/hosting" /></Route>
 
       <Route path="/login">
         {!isLoading && user ? (
@@ -605,8 +605,6 @@ function RouterRoot() {
           return vpsId ? <Redirect to={`/cart/add/${vpsId}?type=vps`} /> : <Redirect to="/" />;
         }}
       </Route>
-      {/* /order — redirect to hosting cart (backward compat for old marketing links) */}
-      <Route path="/order"><Redirect to="/cart/hosting" /></Route>
       {/* /order/:slug — slug-based clean short link (AFTER specific /order/* routes) */}
       <Route path="/order/:slug" component={OrderBySlug}/>
       {/* /cart — Dedicated cart pages (Hostinger-style, per service type) */}

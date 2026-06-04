@@ -479,6 +479,37 @@ router.post("/cart/validate-referral", async (req, res) => {
   }
 });
 
+// ─── GET /api/referral/validate — GET alias for referral code validation ──────
+// Supports ?code=REFCODE query param for cart pages
+router.get("/referral/validate", async (req, res) => {
+  try {
+    const code = String(req.query.code || "").trim().toUpperCase();
+    if (!code) return res.status(400).json({ error: "Code is required" });
+
+    const [affiliate] = await db.select({
+      id: affiliatesTable.id,
+      referralCode: affiliatesTable.referralCode,
+      userId: affiliatesTable.userId,
+      status: affiliatesTable.status,
+    }).from(affiliatesTable)
+      .where(eq(affiliatesTable.referralCode, code))
+      .limit(1);
+
+    if (!affiliate || affiliate.status === "suspended") {
+      return res.status(404).json({ error: "Invalid referral code" });
+    }
+
+    return res.json({
+      valid: true,
+      code: affiliate.referralCode,
+      affiliateId: affiliate.id,
+      discountPercent: 10,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── POST /api/cart/session — create or update a cart recovery session ───────
 // Maps to existing cart_sessions table (abandoned cart recovery schema).
 router.post("/cart/session", async (req, res) => {

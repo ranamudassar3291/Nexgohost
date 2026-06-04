@@ -303,6 +303,7 @@ export default function CartHosting() {
         applyCredits,
       };
       if (promoApplied) body.promoCode = promoCode;
+      if (referralApplied && referralCode) body.referralCode = referralCode.trim().toUpperCase();
       if (domainMode === "register" && domainInput) { body.domain = domainInput; body.registerDomain = true; }
       if (domainMode === "free" && freeDomainName && freeDomainTld) { body.domain = `${freeDomainName}${freeDomainTld}`; body.registerDomain = true; body.freeDomain = true; }
       const d = await apiFetch("/api/checkout", { method: "POST", body: JSON.stringify(body) });

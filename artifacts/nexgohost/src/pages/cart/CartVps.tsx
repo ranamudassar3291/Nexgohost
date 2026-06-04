@@ -187,7 +187,8 @@ export default function CartVps() {
   const saveCartState = () => {
     localStorage.setItem("cart_vps_state", JSON.stringify({
       planId: selectedPlan?.id, cycle, locationId: selectedLocation?.id, osId: selectedOs?.id,
-      hostname, rootPassword, weeklyBackups, promoCode,
+      hostname, weeklyBackups, promoCode,
+      // rootPassword intentionally NOT persisted — never store credentials in localStorage
     }));
   };
 
@@ -600,7 +601,7 @@ export default function CartVps() {
                   {selectedOs && (
                     <div className="flex justify-between items-center py-2 border-b border-gray-100">
                       <span className="text-[13px] font-semibold text-gray-500 uppercase tracking-wide">OS</span>
-                      <span className="font-semibold text-gray-800">{selectedOs.label}</span>
+                      <span className="font-semibold text-gray-800">{selectedOs.name} {selectedOs.version}</span>
                     </div>
                   )}
                   <div className="flex justify-between items-center py-2 border-b border-gray-100">
