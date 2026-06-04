@@ -1,3 +1,6 @@
+import path from "path";
+import { existsSync } from "fs";
+import express from "express";
 import app from "./app";
 import { decryptField } from "./lib/fieldCrypto.js";
 import { refreshExchangeRates } from "./routes/currencies.js";
@@ -1136,6 +1139,17 @@ async function runStartupMigrations() {
   } catch (err: any) {
     console.warn("[MIGRATIONS] Startup migration warning (non-fatal):", err.message);
   }
+}
+
+// Serve built frontend in production (autoscale health check requires GET / → 200)
+const frontendDist = path.join(__dirname, "../../nexgohost/dist/public");
+if (existsSync(frontendDist)) {
+  app.use(express.static(frontendDist, { index: "index.html" }));
+  // SPA fallback: all non-API routes serve index.html
+  app.get(/^(?!\/api\/).*/, (_req, res) => {
+    res.sendFile(path.join(frontendDist, "index.html"));
+  });
+  console.log(`[STATIC] Serving frontend from ${frontendDist}`);
 }
 
 const rawPort = process.env["PORT"] || "8080";
