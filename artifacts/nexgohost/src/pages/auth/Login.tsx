@@ -89,11 +89,11 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      await apiFetch("/api/auth/verify-email", tempToken, { method: "POST", body: JSON.stringify({ code: verifyCode }) });
-      const data = await apiFetch("/api/auth/login", undefined, { method: "POST", body: JSON.stringify({ email, password }) });
+      const data = await apiFetch("/api/auth/verify-email", tempToken, { method: "POST", body: JSON.stringify({ code: verifyCode }) });
+      // verify-email returns a full auth token — use it directly (no need for 2nd login call)
       login(data.token);
       toast({ title: "Email verified", description: "You are now signed in." });
-      setLocation(nextUrl || (data.user?.role === "admin" ? "/admin/dashboard" : "/dashboard"));
+      setLocation(nextUrl || "/dashboard");
     } catch (err: any) {
       toast({ title: "Verification failed", description: err.message, variant: "destructive" });
     } finally { setLoading(false); }

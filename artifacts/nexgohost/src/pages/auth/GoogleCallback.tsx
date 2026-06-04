@@ -76,7 +76,8 @@ export default function GoogleCallback() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || data.error || "Verification failed");
-      login(tempToken);
+      // verify-email now returns a full auth token — use it (not the scoped tempToken)
+      login(data.token);
       toast({ title: "Email verified!", description: "Welcome to Noehost." });
       setLocation("/dashboard");
     } catch (err: any) {

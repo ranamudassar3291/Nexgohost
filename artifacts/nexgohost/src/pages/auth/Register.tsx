@@ -227,8 +227,9 @@ export default function Register() {
     e.preventDefault();
     setLoading(true);
     try {
-      await apiFetch("/api/auth/verify-email", tempToken, { method: "POST", body: JSON.stringify({ code: verifyCode }) });
-      login(tempToken);
+      const data = await apiFetch("/api/auth/verify-email", tempToken, { method: "POST", body: JSON.stringify({ code: verifyCode }) });
+      // Use the full auth token returned by verify-email (not the scoped tempToken)
+      login(data.token || tempToken);
       toast({ title: "Account verified!", description: "Welcome to Noehost." });
       redirect();
     } catch (err: any) {

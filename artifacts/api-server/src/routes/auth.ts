@@ -3,7 +3,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { usersTable, settingsTable, adminLogsTable, affiliatesTable, affiliateReferralsTable, activityLogsTable, passwordResetsTable } from "@workspace/db/schema";
 import { eq, sql, and, gt } from "drizzle-orm";
-import { hashPassword, comparePassword, signToken, authenticate, requireAdmin, type AuthRequest } from "../lib/auth.js";
+import { hashPassword, comparePassword, signToken, signVerificationToken, authenticate, authenticateVerification, requireAdmin, type AuthRequest } from "../lib/auth.js";
 import { decryptField } from "../lib/fieldCrypto.js";
 import { emailVerificationCode, emailPasswordReset, emailWelcome, sendEmail, emailLoginAlert } from "../lib/email.js";
 import { sendToClientPhone } from "../lib/whatsapp.js";
@@ -154,7 +154,11 @@ router.post("/auth/register", async (req, res) => {
     }
 
     logActivity(user.id, "account_registered" as any, req, "success", undefined, user.email, `New client account registered`).catch(() => {});
-    const token = signToken({ userId: user.id, role: user.role, email: user.email, adminPermission: user.adminPermission ?? undefined });
+    // If verification required: issue a scoped 10-min token (only usable for verify-email/resend routes)
+    // Otherwise: issue a full auth token
+    const token = verificationRequired
+      ? signVerificationToken(user.id, user.email)
+      : signToken({ userId: user.id, role: user.role, email: user.email, adminPermission: user.adminPermission ?? undefined });
     res.status(201).json({ token, requiresVerification: verificationRequired, user: formatUser(user) });
 
     // WhatsApp welcome message to client (non-blocking)
@@ -176,13 +180,18 @@ router.post("/auth/register", async (req, res) => {
   }
 });
 
-// POST /auth/verify-email
-router.post("/auth/verify-email", authenticate, async (req: AuthRequest, res) => {
+// POST /auth/verify-email — accepts ONLY scoped email_verification tokens
+router.post("/auth/verify-email", authenticateVerification, async (req: AuthRequest, res) => {
   try {
     const { code } = req.body;
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
     if (!user) { res.status(404).json({ error: "Not found" }); return; }
-    if (user.emailVerified) { res.json({ success: true, message: "Already verified" }); return; }
+    if (user.emailVerified) {
+      // Already verified — issue a full auth token so client can proceed
+      const fullToken = signToken({ userId: user.id, role: user.role, email: user.email ?? "", adminPermission: user.adminPermission ?? undefined });
+      res.json({ success: true, message: "Already verified", token: fullToken });
+      return;
+    }
     if (!user.verificationCode || user.verificationCode !== code) {
       res.status(400).json({ error: "Invalid verification code" }); return;
     }
@@ -192,12 +201,14 @@ router.post("/auth/verify-email", authenticate, async (req: AuthRequest, res) =>
     const [updated] = await db.update(usersTable)
       .set({ emailVerified: true, verificationCode: null, verificationExpiresAt: null, updatedAt: new Date() })
       .where(eq(usersTable.id, user.id)).returning();
-    res.json({ success: true, user: formatUser(updated) });
+    // Issue a full auth token now that the user is verified
+    const fullToken = signToken({ userId: updated.id, role: updated.role, email: updated.email ?? "", adminPermission: updated.adminPermission ?? undefined });
+    res.json({ success: true, user: formatUser(updated), token: fullToken });
   } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
 });
 
-// POST /auth/resend-verification
-router.post("/auth/resend-verification", authenticate, async (req: AuthRequest, res) => {
+// POST /auth/resend-verification — accepts ONLY scoped email_verification tokens
+router.post("/auth/resend-verification", authenticateVerification, async (req: AuthRequest, res) => {
   try {
     const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId)).limit(1);
     if (!user) { res.status(404).json({ error: "Not found" }); return; }
@@ -305,7 +316,8 @@ router.post("/auth/login", async (req, res) => {
     // Block client login until email is verified (only when verification is enabled)
     const verificationEnabled = await isEmailVerificationEnabled();
     if (verificationEnabled && !user.emailVerified && user.role === "client") {
-      const tempToken = signToken({ userId: user.id, role: user.role, email: user.email, adminPermission: user.adminPermission ?? undefined });
+      // Scoped 10-min token — only usable for verify-email/resend endpoints
+      const tempToken = signVerificationToken(user.id, user.email);
       res.status(403).json({
         error: "Email not verified",
         requiresVerification: true,
@@ -698,8 +710,8 @@ router.get("/auth/google/callback", async (req, res) => {
         emailVerificationCode(newUser.email, newUser.firstName, verCode, { clientId: newUser.id }).catch((e: any) =>
           console.error("[AUTH] Google new-user verification email failed:", e.message));
 
-        // Temp token for verification step
-        const tempToken = signToken({ userId: newUser.id, role: "client", email: newUser.email, adminPermission: undefined });
+        // Scoped 10-min token — ONLY usable for verify-email/resend endpoints (not full API access)
+        const tempToken = signVerificationToken(newUser.id, newUser.email);
         res.redirect(
           `${frontendBase}/google-callback?requiresVerification=true` +
           `&tempToken=${encodeURIComponent(tempToken)}` +
@@ -711,6 +723,17 @@ router.get("/auth/google/callback", async (req, res) => {
 
       // No verification needed — log in directly
       const jwt = signToken({ userId: newUser.id, role: "client", email: newUser.email, adminPermission: undefined });
+      // Login alert for first Google sign-in (no verification needed path)
+      if (newUser.role === "client") {
+        const now = new Date();
+        emailLoginAlert(newUser.email, {
+          clientName: `${newUser.firstName} ${newUser.lastName || ""}`.trim(),
+          ip: ip || "Unknown",
+          device: `${ua.includes("Mobile") ? "Mobile" : "Desktop"} (via Google)`,
+          loginTime: now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Karachi" }) + " PKT",
+          loginDate: now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" }),
+        }, { clientId: newUser.id }).catch(() => {});
+      }
       res.redirect(`${frontendBase}/google-callback?token=${encodeURIComponent(jwt)}&firstName=${encodeURIComponent(newUser.firstName || "")}`);
       return;
     }
@@ -840,6 +863,19 @@ router.post("/auth/google", async (req, res) => {
 
     const token = signToken({ userId: user.id, role: user.role, email: user.email ?? "", adminPermission: user.adminPermission ?? undefined });
     await logAuthEvent({ userId: user.id, email: user.email, action: "google_login", method: "google", status: "success", ipAddress: ip, userAgent: ua });
+
+    // Login alert — every Google sign-in (non-blocking)
+    if (user.role === "client") {
+      const now = new Date();
+      const deviceStr = ua.includes("Mobile") ? "Mobile (via Google)" : "Desktop (via Google)";
+      emailLoginAlert(user.email, {
+        clientName: `${user.firstName} ${user.lastName || ""}`.trim(),
+        ip: ip || "Unknown",
+        device: deviceStr,
+        loginTime: now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Karachi" }) + " PKT",
+        loginDate: now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" }),
+      }, { clientId: user.id }).catch(() => {});
+    }
 
     res.json({
       token,

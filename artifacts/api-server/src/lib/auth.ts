@@ -44,12 +44,22 @@ export interface TokenPayload {
   role: string;
   email: string;
   adminPermission?: string;
+  purpose?: string;
 }
 
 export function signToken(payload: TokenPayload, expiresIn?: string): string {
   // Admin sessions expire in 2 hours; client sessions last 7 days.
   const expiry = expiresIn ?? "7d";
   return jwt.sign(payload, JWT_SECRET, { expiresIn: expiry } as any);
+}
+
+/** Signs a scoped 10-minute token ONLY usable for email verification endpoints. */
+export function signVerificationToken(userId: string, email: string): string {
+  return jwt.sign(
+    { userId, role: "client", email, purpose: "email_verification" },
+    JWT_SECRET,
+    { expiresIn: "10m" } as any,
+  );
 }
 
 export function verifyToken(token: string): TokenPayload {
@@ -93,10 +103,37 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
 
   const token = authHeader.slice(7);
   try {
-    req.user = verifyToken(token);
+    const payload = verifyToken(token);
+    // Reject scoped verification-only tokens from normal API access
+    if (payload.purpose === "email_verification") {
+      res.status(401).json({ error: "Unauthorized", message: "Token cannot be used for this endpoint" });
+      return;
+    }
+    req.user = payload;
     next();
   } catch {
     res.status(401).json({ error: "Unauthorized", message: "Invalid or expired token" });
+  }
+}
+
+/** Middleware that ONLY accepts scoped email-verification tokens. */
+export function authenticateVerification(req: AuthRequest, res: Response, next: NextFunction): void {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) {
+    res.status(401).json({ error: "Unauthorized", message: "No token provided" });
+    return;
+  }
+  const token = authHeader.slice(7);
+  try {
+    const payload = verifyToken(token);
+    if (payload.purpose !== "email_verification") {
+      res.status(401).json({ error: "Unauthorized", message: "Invalid verification token" });
+      return;
+    }
+    req.user = payload;
+    next();
+  } catch {
+    res.status(401).json({ error: "Unauthorized", message: "Invalid or expired verification token" });
   }
 }
 
