@@ -86,6 +86,24 @@ export default function CartDomainRegister() {
         localStorage.removeItem("cart_domain_register_state");
         if (s.years) setYears(Number(s.years));
         if (s.promoCode) setPromoCode(s.promoCode);
+        // Restore domain selection: re-run search so domain results + selection are valid
+        if (s.query) {
+          setQuery(s.query);
+          setSearching(true); setHasSearched(true);
+          fetch(`/api/domain/search?q=${encodeURIComponent(s.query)}`)
+            .then(r => r.json())
+            .then((data: DomainResult[]) => {
+              setResults(data);
+              if (s.domain) {
+                const match = data.find(d => d.domain === s.domain);
+                if (match) { setSelectedDomain(match); return; }
+              }
+              const avail = data.find(d => d.available);
+              if (avail) setSelectedDomain(avail);
+            })
+            .catch(() => {})
+            .finally(() => setSearching(false));
+        }
       }
     } catch {}
   }, []);
@@ -138,7 +156,9 @@ export default function CartDomainRegister() {
 
   const saveCartState = () => {
     localStorage.setItem("cart_domain_register_state", JSON.stringify({
-      domain: selectedDomain?.domain, years, promoCode,
+      query: selectedDomain?.domain.split(".")[0] || query.trim(),
+      domain: selectedDomain?.domain,
+      years, promoCode,
     }));
   };
 

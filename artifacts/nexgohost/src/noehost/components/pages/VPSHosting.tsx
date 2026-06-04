@@ -102,9 +102,9 @@ const VPSHosting: React.FC = () => {
     const raw = plan._raw || plan;
     const planId = raw.id || '';
     if (planId) {
-      window.location.href = `/cart/add/${planId}?type=vps`;
+      window.location.href = `/cart/vps?planId=${planId}`;
     } else {
-      window.location.href = '/';
+      window.location.href = '/cart/vps';
     }
   };
 

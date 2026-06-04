@@ -74,7 +74,7 @@ export default function CartVps() {
   const { formatPrice } = useCurrency();
 
   const params = new URLSearchParams(search);
-  const preselectedId = params.get("plan") || params.get("id") || "";
+  const preselectedId = params.get("planId") || params.get("plan") || params.get("id") || "";
 
   const [step, setStep] = useState<Step>("plan");
   const [plans, setPlans] = useState<VpsPlan[]>([]);
