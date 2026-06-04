@@ -1028,6 +1028,8 @@ async function handleCheckout(req: AuthRequest, res: any) {
     res.status(201).json({
       success: true,
       paidWithCredits,
+      invoiceId: invoice.id,
+      orderId: order.id,
       order: { id: order.id, itemName: order.itemName, amount: Number(order.amount), status: paidWithCredits ? "approved" : order.status },
       invoice: { id: invoice.id, invoiceNumber, amount: Number(invoice.amount), status: paidWithCredits ? "paid" : invoice.status, dueDate: invoice.dueDate?.toISOString() },
       service: { id: service.id, status: paidWithCredits ? "active" : service.status },
@@ -1062,7 +1064,7 @@ async function handleDomainCheckout(req: AuthRequest, res: any) {
       return;
     }
 
-    const registrationYears = Math.min(3, Math.max(1, Number(period) || 1));
+    const registrationYears = Math.min(5, Math.max(1, Number(period) || 1));
 
     const [user] = await db.select().from(usersTable)
       .where(eq(usersTable.id, req.user!.userId)).limit(1);
@@ -1228,6 +1230,8 @@ async function handleDomainCheckout(req: AuthRequest, res: any) {
 
     res.status(201).json({
       success: true,
+      invoiceId: invoice.id,
+      orderId: order.id,
       order: { id: order.id, domain: fullDomain, amount: finalAmount, status: order.status },
       invoice: { id: invoice.id, invoiceNumber, amount: finalAmount, status: invoice.status, dueDate: invoice.dueDate?.toISOString() },
     });

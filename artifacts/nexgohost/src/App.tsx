@@ -186,7 +186,7 @@ function OrderByGroup() {
   return <Redirect to="/#plans" />;
 }
 
-// /buy/:planId or /order/:slug → resolve plan UUID then redirect to /cart/add/:id
+// /buy/:planId or /order/:slug → resolve plan UUID then redirect to /cart/hosting?planId=
 function OrderBySlug() {
   const params = useParams<{ slug?: string; planId?: string }>();
   const raw = params.slug ?? params.planId ?? "";
@@ -201,38 +201,38 @@ function OrderBySlug() {
       .catch(() => setErr("Could not connect to server"));
   }, [raw]);
 
-  if (err) return <Redirect to="/" />;
+  if (err) return <Redirect to="/cart/hosting" />;
   if (!planId) return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="w-10 h-10 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
     </div>
   );
-  return <Redirect to={`/cart/add/${planId}`} />;
+  return <Redirect to={`/cart/hosting?planId=${planId}`} />;
 }
 
-// VPS direct-link → redirect to unified cart with type=vps
+// VPS direct-link → dedicated VPS cart page
 function OrderByVpsPlan() {
   const { planId } = useParams<{ planId: string }>();
-  return <Redirect to={`/cart/add/${planId}?type=vps`} />;
+  return <Redirect to={`/cart/vps?planId=${planId}`} />;
 }
 
-// /dashboard/orders/new and WHMCS-style links → unified cart
+// /dashboard/orders/new and WHMCS-style links → dedicated cart pages
 function ClientOrdersNewRedirect() {
   const params = new URLSearchParams(window.location.search);
   const pid   = params.get("pid")    ?? params.get("plan_id") ?? "";
   const vpsId = params.get("vps_id") ?? "";
-  if (pid)   return <Redirect to={`/cart/add/${pid}`} />;
-  if (vpsId) return <Redirect to={`/cart/add/${vpsId}?type=vps`} />;
-  return <Redirect to="/" />;
+  if (vpsId) return <Redirect to={`/cart/vps?planId=${vpsId}`} />;
+  if (pid)   return <Redirect to={`/cart/hosting?planId=${pid}`} />;
+  return <Redirect to="/cart/hosting" />;
 }
 
-// /cart (WHMCS-style with query params) → unified cart
+// /cart (WHMCS-style with query params) → dedicated cart pages
 function CartRedirect() {
   const params = new URLSearchParams(window.location.search);
   const pid    = params.get("pid") ?? "";
   const action = params.get("a")   ?? "";
-  if (action === "add" && pid) return <Redirect to={`/cart/add/${pid}`} />;
-  return <Redirect to="/cart" />;
+  if (action === "add" && pid) return <Redirect to={`/cart/hosting?planId=${pid}`} />;
+  return <Redirect to="/cart/hosting" />;
 }
 
 // ─── API Health Wrapper ────────────────────────────────────────────────────────
