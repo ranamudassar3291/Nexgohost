@@ -200,7 +200,7 @@ router.get("/my/email-orders", authenticate, async (req: AuthRequest, res) => {
 router.post("/my/email-orders", authenticate, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.userId;
-    const { package_id, domain_name, billing_cycle } = req.body;
+    const { package_id, domain_name, billing_cycle, promo_code, apply_credits } = req.body;
     if (!package_id || !domain_name) {
       return res.status(400).json({ error: "package_id and domain_name are required" });
     }
@@ -221,7 +221,41 @@ router.post("/my/email-orders", authenticate, async (req: AuthRequest, res) => {
     if (!rawPrice || isNaN(rawPrice) || rawPrice <= 0) {
       return res.status(400).json({ error: "Package price is not configured. Please contact support." });
     }
-    const price = rawPrice;
+
+    // Promo code discount
+    let promoDiscount = 0;
+    let promoDetails: { code: string; discountPercent: number } | null = null;
+    if (promo_code) {
+      try {
+        const promoResult = await db.execute(sql`
+          SELECT * FROM promo_codes
+          WHERE code = ${promo_code.trim().toUpperCase()}
+            AND (expires_at IS NULL OR expires_at > NOW())
+            AND (max_uses IS NULL OR used_count < max_uses)
+          LIMIT 1
+        `);
+        const pc = (promoResult.rows as any[])[0];
+        if (pc) {
+          const applicableTo: string[] = pc.applicable_to ? JSON.parse(pc.applicable_to) : [];
+          if (!applicableTo.length || applicableTo.includes("email") || applicableTo.includes("all")) {
+            promoDiscount = Math.round(rawPrice * (parseFloat(pc.discount_percent) / 100) * 100) / 100;
+            promoDetails = { code: promo_code.trim().toUpperCase(), discountPercent: parseFloat(pc.discount_percent) };
+          }
+        }
+      } catch { /* ignore promo errors — do not block order */ }
+    }
+
+    // Wallet credits
+    let creditsApplied = 0;
+    if (apply_credits) {
+      try {
+        const credResult = await db.execute(sql`SELECT balance FROM client_credits WHERE user_id = ${userId} LIMIT 1`);
+        const bal = parseFloat((credResult.rows as any[])[0]?.balance || "0");
+        creditsApplied = Math.min(bal, Math.max(0, rawPrice - promoDiscount));
+      } catch { /* ignore */ }
+    }
+
+    const price = Math.max(0, rawPrice - promoDiscount - creditsApplied);
 
     // Coerce to guaranteed-non-undefined types before SQL binding
     const safeId: string         = String(id);

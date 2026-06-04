@@ -114,10 +114,11 @@ export default function CartDomainRegister() {
 
   const getDomainPrice = (d: DomainResult) => {
     const tldRow = tlds.find(t => t.tld === d.tld);
-    if (!tldRow) return Number(d.price || 0);
-    if (years === 2 && tldRow.register2YearPrice) return tldRow.register2YearPrice;
-    if (years === 3 && tldRow.register3YearPrice) return tldRow.register3YearPrice;
-    return tldRow.registerPrice;
+    if (!tldRow) return Number(d.price || 0) * years;
+    if (years === 2 && tldRow.register2YearPrice) return Number(tldRow.register2YearPrice);
+    if (years === 3 && tldRow.register3YearPrice) return Number(tldRow.register3YearPrice);
+    if (years >= 4 && tldRow.register3YearPrice) return Math.round((Number(tldRow.register3YearPrice) / 3) * years);
+    return Number(tldRow.registerPrice) * years;
   };
 
   const applyPromo = async () => {
@@ -337,16 +338,20 @@ export default function CartDomainRegister() {
                     <div className="font-semibold text-gray-800 text-[14px] mb-3">Registration Period</div>
                     <div className="flex flex-wrap gap-2">
                       {[1,2,3,4,5].map(y => {
+                        const p = getDomainPrice({ ...selectedDomain });
+                        // compute price for this specific year option
                         const tldRow = tlds.find(t => t.tld === selectedDomain.tld);
-                        const hasPrice = y === 1 || (y === 2 && tldRow?.register2YearPrice) || (y === 3 && tldRow?.register3YearPrice);
-                        const p = y === 1 ? tldRow?.registerPrice : y === 2 ? tldRow?.register2YearPrice : y === 3 ? tldRow?.register3YearPrice : y === 4 ? (tldRow?.register3YearPrice ? Number(tldRow.register3YearPrice) / 3 * 4 : null) : (tldRow?.register3YearPrice ? Number(tldRow.register3YearPrice) / 3 * 5 : null);
-                        if (!hasPrice && y > 3) return null;
+                        let yPrice: number;
+                        if (y === 2 && tldRow?.register2YearPrice) yPrice = Number(tldRow.register2YearPrice);
+                        else if (y === 3 && tldRow?.register3YearPrice) yPrice = Number(tldRow.register3YearPrice);
+                        else if (y >= 4 && tldRow?.register3YearPrice) yPrice = Math.round((Number(tldRow.register3YearPrice) / 3) * y);
+                        else yPrice = Number(tldRow?.registerPrice ?? selectedDomain.price ?? 0) * y;
                         return (
                           <button key={y} onClick={() => setYears(y)}
                             className="flex-1 min-w-[72px] p-3 rounded-xl border-2 text-center transition-all"
                             style={{ borderColor: years === y ? BRAND : "#E5E7EB", background: years === y ? "#FAF5FF" : "#fff" }}>
                             <div className="font-bold text-[14px]" style={{ color: years === y ? BRAND : "#374151" }}>{y} Yr{y > 1 ? "s" : ""}</div>
-                            <div className="text-[11px] text-gray-500">{p ? formatPrice(Number(p)) : "—"}</div>
+                            <div className="text-[11px] text-gray-500">{yPrice > 0 ? formatPrice(yPrice) : "—"}</div>
                           </button>
                         );
                       })}

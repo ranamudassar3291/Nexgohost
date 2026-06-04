@@ -207,6 +207,12 @@ export default function CartHosting() {
           }
         } catch {}
       }
+      // Honor ?planId= query param for legacy redirects
+      const urlPlanId = new URLSearchParams(window.location.search).get("planId");
+      if (urlPlanId) {
+        const found = arr.find(p => String(p.id) === urlPlanId || String(p.slug) === urlPlanId);
+        if (found) { setSelectedPlan(found); return; }
+      }
       if (arr.length > 1) setSelectedPlan(arr[1]);
       else if (arr.length > 0) setSelectedPlan(arr[0]);
     }).catch(console.warn).finally(() => setPlansLoading(false));

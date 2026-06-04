@@ -180,11 +180,14 @@ export default function CartEmail() {
     try {
       // Use dedicated email order endpoint — supports real admin_email_packages IDs
       const emailCycle = cycle === "yearly" ? "yearly" : "monthly";
-      const d = await apiFetch("/api/my/email-orders", { method: "POST", body: JSON.stringify({
+      const emailBody: any = {
         package_id: selectedPlan!.id,
         domain_name: domainName,
         billing_cycle: emailCycle,
-      }) });
+        apply_credits: applyCredits || undefined,
+      };
+      if (promoApplied && promoCode.trim()) emailBody.promo_code = promoCode.trim();
+      const d = await apiFetch("/api/my/email-orders", { method: "POST", body: JSON.stringify(emailBody) });
       // Generic payment gateway routing: SafePay, RapidGateway, then manual invoice
       const pm = paymentMethods.find(p => p.id === selectedPm);
       if (d.invoiceId && pm) {

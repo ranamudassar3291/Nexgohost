@@ -96,7 +96,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
           .where(eq(domainExtensionsTable.extension, tld)).limit(1);
         if (tldRow) {
           domainPrice = transferDomain
-            ? Number(tldRow.transferPrice)
+            ? Number(tldRow.renewalPrice ?? tldRow.transferPrice)
             : cleanDomain.endsWith(".pk")
               ? Number(tldRow.register2YearPrice ?? tldRow.registerPrice) * 1
               : Number(tldRow.registerPrice);
@@ -559,7 +559,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
       const tld = domain.slice(domain.indexOf(".")).toLowerCase();
       const [tldRow] = await db.select().from(domainExtensionsTable)
         .where(eq(domainExtensionsTable.extension, tld)).limit(1);
-      if (tldRow) domainAddon = Number(tldRow.transferPrice);
+      if (tldRow) domainAddon = Number(tldRow.renewalPrice ?? tldRow.transferPrice);
     }
 
     let discountAmount = 0;
