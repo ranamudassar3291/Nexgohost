@@ -1052,7 +1052,8 @@ async function handleCheckout(req: AuthRequest, res: any) {
 // POST /api/checkout/domain — domain-only order
 async function handleDomainCheckout(req: AuthRequest, res: any) {
   try {
-    const { domain, tld, period = 1, nameservers: _ns, promoCode, paymentMethodId } = req.body;
+    const { domain, tld, period = 1, nameservers: _ns, promoCode, paymentMethodId, referralCode: rawDomainReferral } = req.body;
+    const referralCode = typeof rawDomainReferral === "string" && rawDomainReferral.trim() ? rawDomainReferral.trim().toUpperCase() : null;
     const resolvedNs: string[] = (Array.isArray(_ns) && _ns.length >= 2)
       ? _ns.map((n: string) => n.trim().toLowerCase()).filter(Boolean)
       : [`ns1.${new URL(getAppUrl()).hostname}`, `ns2.${new URL(getAppUrl()).hostname}`];

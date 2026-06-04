@@ -203,8 +203,8 @@ router.post("/domain-search", authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// GET /api/domain-search/tlds — list available TLDs for the search UI
-router.get("/domain-search/tlds", authenticate, async (_req, res) => {
+// GET /api/domain-search/tlds — list available TLDs (public — used by guest cart pages)
+router.get("/domain-search/tlds", async (_req, res) => {
   try {
     const rows = await db.select().from(domainExtensionsTable)
       .then(r => r.filter(e => e.status === "active"));
