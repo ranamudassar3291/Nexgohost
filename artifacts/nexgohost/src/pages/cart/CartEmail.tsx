@@ -165,16 +165,7 @@ export default function CartEmail() {
         notes: `Business Email: ${selectedPlan!.name} · ${mailboxQty} mailbox${mailboxQty > 1 ? "es" : ""} · ${domainName}`,
       };
       if (promoApplied) body.promoCode = promoCode;
-      const d = await apiFetch("/api/checkout", { method: "POST", body: JSON.stringify(body) }).catch(async () => {
-        // Fallback: create a manual order via support ticket if no email plan in system
-        await apiFetch("/api/tickets", { method: "POST", body: JSON.stringify({
-          subject: `Business Email Order — ${selectedPlan!.name}`,
-          message: `Plan: ${selectedPlan!.name}\nMailboxes: ${mailboxQty}\nDomain: ${domainName}\nBilling: ${CYCLE_LABELS[cycle]}\nAmount: ${formatPrice(planPrice(selectedPlan!, cycle))}`,
-          department: "Sales",
-          priority: "high",
-        })});
-        return { invoiceId: null };
-      });
+      const d = await apiFetch("/api/checkout", { method: "POST", body: JSON.stringify(body) });
       // Generic payment gateway routing: SafePay, RapidGateway, then manual invoice
       const pm = paymentMethods.find(p => p.id === selectedPm);
       if (d.invoiceId && pm) {

@@ -151,16 +151,16 @@ export default function CartDomainRegister() {
     if (!selectedPm && !applyCredits) { toast({ title: "Select a payment method", variant: "destructive" }); return; }
     setPlacing(true);
     try {
+      // Use /api/checkout/domain which enforces years + multi-year pricing server-side
       const body: any = {
-        domain: selectedDomain!.domain,
-        registerDomain: true,
+        domain: selectedDomain!.sld || selectedDomain!.domain.split(".")[0],
+        tld: selectedDomain!.tld,
+        period: years,
         paymentMethodId: selectedPm || undefined,
         applyCredits,
-        domainAmount: getDomainPrice(selectedDomain!),
-        registrationYears: years,
       };
       if (promoApplied) body.promoCode = promoCode;
-      const d = await apiFetch("/api/checkout", { method: "POST", body: JSON.stringify(body) });
+      const d = await apiFetch("/api/checkout/domain", { method: "POST", body: JSON.stringify(body) });
       // Generic payment gateway routing: SafePay, RapidGateway, then manual invoice
       const pm = paymentMethods.find(p => p.id === selectedPm);
       if (d.invoiceId && pm) {

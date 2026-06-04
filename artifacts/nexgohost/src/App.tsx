@@ -258,7 +258,8 @@ function RouterRoot() {
       {/* ── Auth pages ── */}
       <Route path="/admin/noe"        component={AdminLogin}      />
       <Route path="/admin/login"><Redirect to="/admin/noe" /></Route>
-      <Route path="/login"     component={ClientLogin}     />
+      <Route path="/login"        component={ClientLogin}     />
+      <Route path="/client/login" component={ClientLogin}     />
       <Route path="/register"         component={Register}        />
       <Route path="/forgot-password"  component={ForgotPassword}  />
       <Route path="/forget-password"  component={ForgotPassword}  />
