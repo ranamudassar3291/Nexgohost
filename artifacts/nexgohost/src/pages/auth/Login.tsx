@@ -74,9 +74,22 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      const data = await apiFetch("/api/auth/2fa/verify", tempToken, {
-        method: "POST", body: JSON.stringify({ totp }),
+      const res = await fetch("/api/auth/2fa/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tempToken}` },
+        body: JSON.stringify({ totp }),
       });
+      const data = await res.json();
+      if (!res.ok) {
+        // After 2FA success, email verification may still be required
+        if (res.status === 403 && data.requiresVerification && data.tempToken) {
+          setTempToken(data.tempToken);
+          setStep("verify");
+          toast({ title: "Email verification required", description: "Check your inbox for the 6-digit code." });
+          return;
+        }
+        throw new Error(data.message || data.error || "Invalid code");
+      }
       login(data.token);
       toast({ title: "Welcome back!" });
       setLocation(nextUrl || (data.user?.role === "admin" ? "/admin/dashboard" : "/dashboard"));

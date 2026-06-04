@@ -1111,6 +1111,16 @@ async function runStartupMigrations() {
     ));
     console.log("[MIGRATIONS] payment_method enum updated (rapidgateway)");
 
+    // ── Ensure email_verification_enabled is explicitly set to true in settings ─
+    // If the key doesn't exist: insert it as true.
+    // If it exists as 'false': update to 'true' so unverified users can't bypass.
+    await db.execute(sql`
+      INSERT INTO settings (key, value, updated_at)
+      VALUES ('email_verification_enabled', 'true', NOW())
+      ON CONFLICT (key) DO UPDATE SET value = 'true', updated_at = NOW()
+    `);
+    console.log("[MIGRATIONS] email_verification_enabled forced to true");
+
   } catch (err: any) {
     console.warn("[MIGRATIONS] Startup migration warning (non-fatal):", err.message);
   }

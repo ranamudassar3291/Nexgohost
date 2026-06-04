@@ -34,6 +34,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = (newToken: string) => {
     setToken(newToken);
     localStorage.setItem("noehost_token", newToken);
+    // Post-login redirect: restore saved order flow or redirect destination
+    const saved = localStorage.getItem("postLoginRedirect");
+    if (saved) {
+      localStorage.removeItem("postLoginRedirect");
+      // Use setTimeout to let React state settle before navigating
+      setTimeout(() => setLocation(saved), 50);
+    }
   };
 
   const logout = () => {

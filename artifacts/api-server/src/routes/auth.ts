@@ -426,6 +426,22 @@ router.post("/auth/2fa/verify", authenticate, async (req: AuthRequest, res) => {
       logActivity(user.id, "login_failed", req, "failed", "Invalid 2FA code", user.email, "Login attempt failed — invalid 2FA code").catch(() => {});
       res.status(401).json({ error: "Invalid authenticator code" }); return;
     }
+    // After 2FA — enforce email verification before issuing full token (prevents 2FA bypass of email gate)
+    const ver2faEnabled = await isEmailVerificationEnabled();
+    if (ver2faEnabled && !user.emailVerified && user.role === "client") {
+      // Ensure a verification code exists (or create a fresh one)
+      if (!user.verificationCode || !user.verificationExpiresAt || user.verificationExpiresAt < new Date()) {
+        const code = makeVerificationCode();
+        await db.update(usersTable).set({
+          verificationCode: code, verificationExpiresAt: new Date(Date.now() + 10 * 60 * 1000), updatedAt: new Date(),
+        }).where(eq(usersTable.id, user.id));
+        emailVerificationCode(user.email, user.firstName, code, { clientId: user.id }).catch(() => {});
+      }
+      const verToken = signVerificationToken(user.id, user.email);
+      res.status(403).json({ requiresVerification: true, tempToken: verToken,
+        message: "Please verify your email before completing login." });
+      return;
+    }
     const token = signToken({ userId: user.id, role: user.role, email: user.email, adminPermission: user.adminPermission ?? undefined });
     logActivity(user.id, "login_success", req, "success", undefined, user.email, "Successful login via 2FA").catch(() => {});
     // Login alert — non-blocking

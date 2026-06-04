@@ -136,7 +136,21 @@ export default function ClientLogin() {
   const handle2FA = async (e: React.FormEvent) => {
     e.preventDefault(); setError(null); setLoading(true);
     try {
-      const data = await apiFetch("/api/auth/2fa/verify", tempToken, { method: "POST", body: JSON.stringify({ totp }) });
+      const res = await fetch("/api/auth/2fa/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tempToken}` },
+        body: JSON.stringify({ totp }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        // After 2FA, email verification gate may fire
+        if (res.status === 403 && data.requiresVerification && data.tempToken) {
+          setTempToken(data.tempToken);
+          setStep("verify");
+          return;
+        }
+        throw new Error(data.message || data.error || "Invalid code. Please try again.");
+      }
       login(data.token);
       const params = new URLSearchParams(window.location.search);
       const r2fa = params.get("redirect") || params.get("next");
@@ -149,9 +163,9 @@ export default function ClientLogin() {
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault(); setError(null); setLoading(true);
     try {
-      await apiFetch("/api/auth/verify-email", tempToken, { method: "POST", body: JSON.stringify({ code: verifyCode }) });
-      const loginData = await apiFetch("/api/auth/login", undefined, { method: "POST", body: JSON.stringify({ email, password }) });
-      login(loginData.token);
+      // verify-email returns a full auth token directly — no 2nd login call needed
+      const data = await apiFetch("/api/auth/verify-email", tempToken, { method: "POST", body: JSON.stringify({ code: verifyCode }) });
+      login(data.token);
       const params2 = new URLSearchParams(window.location.search);
       const rVerify = params2.get("redirect") || params2.get("next");
       const hasPendingCartVerify = (() => { try { return JSON.parse(localStorage.getItem("noehost_website_cart") || "[]").length > 0; } catch { return false; } })();
