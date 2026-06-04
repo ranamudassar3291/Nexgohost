@@ -212,6 +212,7 @@ export default function CartVps() {
         vpsHostname: hostname,
         vpsRootUser: "root",
         vpsRootPassword: rootPassword,
+        vpsPublicKey: sshKey.trim() || undefined,
         vpsWeeklyBackups: weeklyBackups,
         vpsAutoRenew: true,
         paymentMethodId: selectedPm || undefined,
@@ -219,13 +220,20 @@ export default function CartVps() {
       };
       if (promoApplied) body.promoCode = promoCode;
       const d = await apiFetch("/api/checkout", { method: "POST", body: JSON.stringify(body) });
-      // Payment routing: gateway redirect (SafePay) vs manual invoice
+      // Generic payment gateway routing: SafePay, RapidGateway, then manual invoice
       const pm = paymentMethods.find(p => p.id === selectedPm);
-      if (pm?.type === "safepay" && d.invoiceId) {
-        try {
-          const sp = await apiFetch("/api/payments/safepay/initiate", { method: "POST", body: JSON.stringify({ invoiceId: d.invoiceId }) });
-          if (sp.checkoutUrl) { window.location.href = sp.checkoutUrl; return; }
-        } catch {}
+      if (d.invoiceId && pm) {
+        if (pm.type === "safepay") {
+          try {
+            const sp = await apiFetch("/api/payments/safepay/initiate", { method: "POST", body: JSON.stringify({ invoiceId: d.invoiceId }) });
+            if (sp.checkoutUrl) { window.location.href = sp.checkoutUrl; return; }
+          } catch {}
+        } else if (pm.type === "rapidgateway") {
+          try {
+            const rg = await apiFetch("/api/payments/rapidgateway/initiate", { method: "POST", body: JSON.stringify({ invoiceId: d.invoiceId }) });
+            if (rg.checkoutUrl) { window.location.href = rg.checkoutUrl; return; }
+          } catch {}
+        }
       }
       toast({ title: "VPS order placed!", description: "Your server will be provisioned shortly." });
       navigate(d.invoiceId ? `/dashboard/invoices/${d.invoiceId}` : "/dashboard/invoices");
@@ -539,6 +547,28 @@ export default function CartVps() {
                         <Shuffle size={14}/> Generate
                       </button>
                     </div>
+                    {rootPassword && (() => {
+                      const hasUpper = /[A-Z]/.test(rootPassword);
+                      const hasLower = /[a-z]/.test(rootPassword);
+                      const hasNum = /[0-9]/.test(rootPassword);
+                      const hasSpec = /[^A-Za-z0-9]/.test(rootPassword);
+                      const len = rootPassword.length;
+                      const score = (len >= 8 ? 1 : 0) + (hasUpper ? 1 : 0) + (hasLower ? 1 : 0) + (hasNum ? 1 : 0) + (hasSpec ? 1 : 0) + (len >= 16 ? 1 : 0);
+                      const level = score <= 2 ? "Weak" : score === 3 ? "Fair" : score === 4 ? "Strong" : "Very Strong";
+                      const colors: Record<string, string> = { Weak: "#EF4444", Fair: "#F59E0B", Strong: "#10B981", "Very Strong": "#059669" };
+                      const widths: Record<string, string> = { Weak: "25%", Fair: "50%", Strong: "75%", "Very Strong": "100%" };
+                      return (
+                        <div className="mt-2">
+                          <div className="flex justify-between text-[11px] mb-1">
+                            <span className="text-gray-400">Password strength</span>
+                            <span className="font-semibold" style={{ color: colors[level] }}>{level}</span>
+                          </div>
+                          <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full transition-all duration-300" style={{ width: widths[level], background: colors[level] }}/>
+                          </div>
+                        </div>
+                      );
+                    })()}
                     <p className="text-[11px] text-gray-400 mt-1">Use a strong password. You can change it later via the dashboard.</p>
                   </div>
 

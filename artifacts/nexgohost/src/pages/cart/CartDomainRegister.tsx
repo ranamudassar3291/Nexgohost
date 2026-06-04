@@ -161,13 +161,20 @@ export default function CartDomainRegister() {
       };
       if (promoApplied) body.promoCode = promoCode;
       const d = await apiFetch("/api/checkout", { method: "POST", body: JSON.stringify(body) });
-      // Payment routing: gateway redirect (SafePay) vs manual invoice
+      // Generic payment gateway routing: SafePay, RapidGateway, then manual invoice
       const pm = paymentMethods.find(p => p.id === selectedPm);
-      if (pm?.type === "safepay" && d.invoiceId) {
-        try {
-          const sp = await apiFetch("/api/payments/safepay/initiate", { method: "POST", body: JSON.stringify({ invoiceId: d.invoiceId }) });
-          if (sp.checkoutUrl) { window.location.href = sp.checkoutUrl; return; }
-        } catch {}
+      if (d.invoiceId && pm) {
+        if (pm.type === "safepay") {
+          try {
+            const sp = await apiFetch("/api/payments/safepay/initiate", { method: "POST", body: JSON.stringify({ invoiceId: d.invoiceId }) });
+            if (sp.checkoutUrl) { window.location.href = sp.checkoutUrl; return; }
+          } catch {}
+        } else if (pm.type === "rapidgateway") {
+          try {
+            const rg = await apiFetch("/api/payments/rapidgateway/initiate", { method: "POST", body: JSON.stringify({ invoiceId: d.invoiceId }) });
+            if (rg.checkoutUrl) { window.location.href = rg.checkoutUrl; return; }
+          } catch {}
+        }
       }
       toast({ title: "Order placed!", description: "Domain registration initiated." });
       navigate(d.invoiceId ? `/dashboard/invoices/${d.invoiceId}` : "/dashboard/invoices");

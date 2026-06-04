@@ -30,11 +30,13 @@ async function handleCheckout(req: AuthRequest, res: any) {
       nameservers: clientNameservers,
       applyCredits: applyCreditsRaw,
       captchaToken,
+      referralCode: rawReferralCode,
       // Multi-currency: client sends their display currency
       currencyCode: clientCurrencyCode,
       currencySymbol: clientCurrencySymbol,
       currencyRate: clientCurrencyRate,
     } = req.body;
+    const referralCode = typeof rawReferralCode === "string" && rawReferralCode.trim() ? rawReferralCode.trim().toUpperCase() : null;
 
     // Resolve currency — default to PKR
     const invoiceCurrencyCode   = (typeof clientCurrencyCode === "string" && clientCurrencyCode.length <= 10)   ? clientCurrencyCode   : "PKR";
@@ -140,6 +142,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
         status: "pending",
         notes: transferDomain ? `Transfer EPP provided` : undefined,
       }).returning();
+      if (referralCode) await db.execute(sql`UPDATE orders SET referral_code = ${referralCode} WHERE id = ${order.id}`);
 
       const [invoice] = await db.insert(invoicesTable).values({
         invoiceNumber,
@@ -380,6 +383,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
         status: "pending",
         notes: `VPS Order | OS: ${vpsOsTemplate ?? "any"} | DC: ${vpsLocation ?? "any"}`,
       }).returning();
+      if (referralCode) await db.execute(sql`UPDATE orders SET referral_code = ${referralCode} WHERE id = ${order.id}`);
 
       const [invoice] = await db.insert(invoicesTable).values({
         invoiceNumber,
@@ -633,6 +637,7 @@ async function handleCheckout(req: AuthRequest, res: any) {
       status: "pending",
       notes: notes || null,
     }).returning();
+    if (referralCode) await db.execute(sql`UPDATE orders SET referral_code = ${referralCode} WHERE id = ${order.id}`);
 
     // 2. Create pending hosting service
     const months = cycle === "yearly" ? 12 : cycle === "semiannual" ? 6 : cycle === "quarterly" ? 3 : 1;
@@ -1138,6 +1143,7 @@ async function handleDomainCheckout(req: AuthRequest, res: any) {
       status: "pending",
       notes: noteParts.join(", "),
     }).returning();
+    if (referralCode) await db.execute(sql`UPDATE orders SET referral_code = ${referralCode} WHERE id = ${order.id}`);
 
     // Domain invoice: due date = registration period from now
     const dueDate = new Date();

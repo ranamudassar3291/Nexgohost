@@ -1119,6 +1119,10 @@ async function runStartupMigrations() {
     ));
     console.log("[MIGRATIONS] payment_method enum updated (rapidgateway)");
 
+    // orders — referral_code column for affiliate tracking on new cart pages
+    await db.execute(sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS referral_code TEXT`);
+    console.log("[MIGRATIONS] orders.referral_code ready");
+
     // ── Ensure email_verification_enabled is explicitly set to true in settings ─
     // If the key doesn't exist: insert it as true.
     // If it exists as 'false': update to 'true' so unverified users can't bypass.
