@@ -10,6 +10,11 @@ import { CartProvider } from "@/context/CartContext";
 import { UnifiedCartProvider } from "@/context/UnifiedCartContext";
 import UnifiedCart from "@/pages/client/UnifiedCart";
 import UnifiedCartAdd from "@/pages/client/UnifiedCartAdd";
+import CartHosting from "@/pages/cart/CartHosting";
+import CartDomainRegister from "@/pages/cart/CartDomainRegister";
+import CartDomainTransfer from "@/pages/cart/CartDomainTransfer";
+import CartVps from "@/pages/cart/CartVps";
+import CartEmail from "@/pages/cart/CartEmail";
 import { ThemeProvider } from "@/context/ThemeProvider";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouteLogger } from "@/hooks/use-route-logger";
@@ -602,7 +607,13 @@ function RouterRoot() {
       </Route>
       {/* /order/:slug — slug-based clean short link (AFTER specific /order/* routes) */}
       <Route path="/order/:slug" component={OrderBySlug}/>
-      {/* /cart — Unified cart & checkout (Hostinger-style) */}
+      {/* /cart — Dedicated cart pages (Hostinger-style, per service type) */}
+      <Route path="/cart/hosting"><CartHosting /></Route>
+      <Route path="/cart/domain/register"><CartDomainRegister /></Route>
+      <Route path="/cart/domain/transfer"><CartDomainTransfer /></Route>
+      <Route path="/cart/vps"><CartVps /></Route>
+      <Route path="/cart/email"><CartEmail /></Route>
+      {/* /cart — Unified cart & checkout (legacy) */}
       <Route path="/cart/add/:packageId"><UnifiedCartAdd /></Route>
       <Route path="/cart"><UnifiedCart /></Route>
 
