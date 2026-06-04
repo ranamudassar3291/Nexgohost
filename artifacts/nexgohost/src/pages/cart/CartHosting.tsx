@@ -2,7 +2,7 @@
  * /cart/hosting — Hostinger-style Hosting Plan Cart Page
  * Steps: 1. Plan Selection → 2. Domain Setup → 3. Payment
  */
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
 import {
   Server, Check, ChevronDown, ChevronUp, Globe, Shield, Zap, HardDrive,
@@ -167,6 +167,9 @@ export default function CartHosting() {
   const [creditBalance, setCreditBalance] = useState(0);
   const [applyCredits, setApplyCredits] = useState(false);
 
+  // Restore state saved before login redirect
+  const stateRestored = useRef(false);
+
   useEffect(() => {
     fetch("/api/hosting/plans").then(r => r.json()).then(data => {
       const arr: Plan[] = Array.isArray(data) ? data.map((p: any, i: number) => ({
@@ -179,6 +182,31 @@ export default function CartHosting() {
         isPopular: i === 1,
       })) : [];
       setPlans(arr);
+      // Restore pre-login cart state saved to localStorage
+      if (!stateRestored.current) {
+        stateRestored.current = true;
+        try {
+          const saved = localStorage.getItem("cart_hosting_state");
+          if (saved) {
+            const s = JSON.parse(saved);
+            localStorage.removeItem("cart_hosting_state");
+            if (s.plan && arr.length > 0) {
+              const found = arr.find(p => String(p.id) === String(s.plan));
+              if (found) { setSelectedPlan(found); }
+              else if (arr.length > 1) setSelectedPlan(arr[1]);
+              else setSelectedPlan(arr[0]);
+            } else if (arr.length > 1) setSelectedPlan(arr[1]);
+            else if (arr.length > 0) setSelectedPlan(arr[0]);
+            if (s.cycle) setCycle(s.cycle);
+            if (s.domainMode) setDomainMode(s.domainMode);
+            if (s.domainInput) setDomainInput(s.domainInput);
+            if (s.promoCode) setPromoCode(s.promoCode);
+            if (s.freeDomainName) setFreeDomainName(s.freeDomainName);
+            if (s.freeDomainTld) setFreeDomainTld(s.freeDomainTld);
+            return;
+          }
+        } catch {}
+      }
       if (arr.length > 1) setSelectedPlan(arr[1]);
       else if (arr.length > 0) setSelectedPlan(arr[0]);
     }).catch(console.warn).finally(() => setPlansLoading(false));
@@ -250,10 +278,16 @@ export default function CartHosting() {
     finally { setReferralLoading(false); }
   };
 
+  // Save cart state to localStorage before login redirect, restore on mount
+  const saveCartState = useCallback(() => {
+    localStorage.setItem("cart_hosting_state", JSON.stringify({
+      plan: selectedPlan?.id, cycle, domainMode, domainInput, domainPrice, freeDomainName, freeDomainTld, promoCode,
+    }));
+  }, [selectedPlan, cycle, domainMode, domainInput, domainPrice, freeDomainName, freeDomainTld, promoCode]);
+
   const placeOrder = async () => {
     if (!user) {
-      const state = { plan: selectedPlan?.id, cycle, domainMode, domainInput, domainPrice, freeDomainName, freeDomainTld, promoCode };
-      sessionStorage.setItem("cart_hosting_state", JSON.stringify(state));
+      saveCartState();
       localStorage.setItem("postLoginRedirect", "/cart/hosting");
       navigate("/client/login?redirect=/cart/hosting");
       return;
@@ -272,8 +306,16 @@ export default function CartHosting() {
       if (domainMode === "register" && domainInput) { body.domain = domainInput; body.registerDomain = true; }
       if (domainMode === "free" && freeDomainName && freeDomainTld) { body.domain = `${freeDomainName}${freeDomainTld}`; body.registerDomain = true; body.freeDomain = true; }
       const d = await apiFetch("/api/checkout", { method: "POST", body: JSON.stringify(body) });
+      // Payment routing: gateway redirect (SafePay) vs manual invoice
+      const pm = paymentMethods.find(p => p.id === selectedPm);
+      if (pm?.type === "safepay" && d.invoiceId) {
+        try {
+          const sp = await apiFetch("/api/payments/safepay/initiate", { method: "POST", body: JSON.stringify({ invoiceId: d.invoiceId }) });
+          if (sp.checkoutUrl) { window.location.href = sp.checkoutUrl; return; }
+        } catch {}
+      }
       toast({ title: "Order placed!", description: "Redirecting to invoice…" });
-      navigate(`/dashboard/invoices/${d.invoiceId}`);
+      navigate(d.invoiceId ? `/dashboard/invoices/${d.invoiceId}` : "/dashboard/invoices");
     } catch (err: any) {
       toast({ title: "Order failed", description: err.message, variant: "destructive" });
     } finally { setPlacing(false); }

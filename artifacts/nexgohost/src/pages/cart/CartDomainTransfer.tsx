@@ -67,6 +67,17 @@ export default function CartDomainTransfer() {
 
   useEffect(() => {
     fetch("/api/domain-search/tlds").then(r => r.json()).then(setTlds).catch(() => {});
+    // Restore pre-login state saved to localStorage
+    try {
+      const saved = localStorage.getItem("cart_domain_transfer_state");
+      if (saved) {
+        const s = JSON.parse(saved);
+        localStorage.removeItem("cart_domain_transfer_state");
+        if (s.domain) setDomainInput(s.domain);
+        if (s.eppCode) setEppCode(s.eppCode);
+        if (s.promoCode) setPromoCode(s.promoCode);
+      }
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -103,8 +114,15 @@ export default function CartDomainTransfer() {
     finally { setPromoLoading(false); }
   };
 
+  const saveCartState = () => {
+    localStorage.setItem("cart_domain_transfer_state", JSON.stringify({
+      domain: domainInput.trim(), eppCode: eppCode.trim(), promoCode,
+    }));
+  };
+
   const placeOrder = async () => {
     if (!user) {
+      saveCartState();
       localStorage.setItem("postLoginRedirect", "/cart/domain/transfer");
       navigate("/client/login?redirect=/cart/domain/transfer");
       return;
@@ -122,8 +140,16 @@ export default function CartDomainTransfer() {
       };
       if (promoApplied) body.promoCode = promoCode;
       const d = await apiFetch("/api/checkout", { method: "POST", body: JSON.stringify(body) });
+      // Payment routing: gateway redirect (SafePay) vs manual invoice
+      const pm = paymentMethods.find(p => p.id === selectedPm);
+      if (pm?.type === "safepay" && d.invoiceId) {
+        try {
+          const sp = await apiFetch("/api/payments/safepay/initiate", { method: "POST", body: JSON.stringify({ invoiceId: d.invoiceId }) });
+          if (sp.checkoutUrl) { window.location.href = sp.checkoutUrl; return; }
+        } catch {}
+      }
       toast({ title: "Transfer initiated!", description: "Check your email for transfer instructions." });
-      navigate(`/dashboard/invoices/${d.invoiceId}`);
+      navigate(d.invoiceId ? `/dashboard/invoices/${d.invoiceId}` : "/dashboard/invoices");
     } catch (err: any) {
       toast({ title: "Transfer failed", description: err.message, variant: "destructive" });
     } finally { setPlacing(false); }

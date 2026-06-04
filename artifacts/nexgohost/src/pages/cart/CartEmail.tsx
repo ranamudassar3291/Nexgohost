@@ -82,6 +82,7 @@ export default function CartEmail() {
   const [plans] = useState<EmailPlan[]>(DEFAULT_EMAIL_PLANS);
   const [selectedPlan, setSelectedPlan] = useState<EmailPlan | null>(DEFAULT_EMAIL_PLANS[1]);
   const [cycle, setCycle] = useState<Cycle>("yearly");
+  const [mailboxQty, setMailboxQty] = useState(1);
   const [domainName, setDomainName] = useState("");
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [pmLoading, setPmLoading] = useState(false);
@@ -118,8 +119,15 @@ export default function CartEmail() {
     finally { setPromoLoading(false); }
   };
 
+  const saveCartState = () => {
+    localStorage.setItem("cart_email_state", JSON.stringify({
+      planId: selectedPlan?.id, cycle, mailboxQty, domainName, promoCode,
+    }));
+  };
+
   const placeOrder = async () => {
     if (!user) {
+      saveCartState();
       localStorage.setItem("postLoginRedirect", "/cart/email");
       navigate("/client/login?redirect=/cart/email");
       return;
@@ -132,21 +140,30 @@ export default function CartEmail() {
         billingCycle: CYCLE_MONTHS[cycle],
         billingCycleLabel: cycle,
         domain: domainName,
+        mailboxQuantity: mailboxQty,
         paymentMethodId: selectedPm || undefined,
         applyCredits,
-        notes: `Business Email: ${selectedPlan!.name} for ${domainName}`,
+        notes: `Business Email: ${selectedPlan!.name} · ${mailboxQty} mailbox${mailboxQty > 1 ? "es" : ""} · ${domainName}`,
       };
       if (promoApplied) body.promoCode = promoCode;
       const d = await apiFetch("/api/checkout", { method: "POST", body: JSON.stringify(body) }).catch(async () => {
         // Fallback: create a manual order via support ticket if no email plan in system
         await apiFetch("/api/tickets", { method: "POST", body: JSON.stringify({
           subject: `Business Email Order — ${selectedPlan!.name}`,
-          message: `Plan: ${selectedPlan!.name}\nDomain: ${domainName}\nBilling: ${CYCLE_LABELS[cycle]}\nAmount: ${formatPrice(planPrice(selectedPlan!, cycle))}`,
+          message: `Plan: ${selectedPlan!.name}\nMailboxes: ${mailboxQty}\nDomain: ${domainName}\nBilling: ${CYCLE_LABELS[cycle]}\nAmount: ${formatPrice(planPrice(selectedPlan!, cycle))}`,
           department: "Sales",
           priority: "high",
         })});
         return { invoiceId: null };
       });
+      // Payment routing: gateway redirect (SafePay) vs manual invoice
+      const pm = paymentMethods.find(p => p.id === selectedPm);
+      if (pm?.type === "safepay" && d.invoiceId) {
+        try {
+          const sp = await apiFetch("/api/payments/safepay/initiate", { method: "POST", body: JSON.stringify({ invoiceId: d.invoiceId }) });
+          if (sp.checkoutUrl) { window.location.href = sp.checkoutUrl; return; }
+        } catch {}
+      }
       toast({ title: "Email order placed!", description: "We'll set up your business email within 24 hours." });
       if (d.invoiceId) navigate(`/dashboard/invoices/${d.invoiceId}`);
       else navigate("/dashboard");
@@ -269,17 +286,32 @@ export default function CartEmail() {
                 <h1 className="text-2xl font-extrabold text-gray-900 mb-1">Your Business Domain</h1>
                 <p className="text-gray-500 mb-6 text-[14px]">Enter the domain where you want email hosted (e.g. mycompany.com)</p>
 
-                <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-                  <label className="block text-[13px] font-semibold text-gray-700 mb-2">Domain Name</label>
-                  <div className="relative">
-                    <Globe size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"/>
-                    <input value={domainName} onChange={e => setDomainName(e.target.value.toLowerCase().trim())}
-                      placeholder="mycompany.com"
-                      className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-[15px] outline-none focus:border-purple-400"/>
+                <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm space-y-5">
+                  <div>
+                    <label className="block text-[13px] font-semibold text-gray-700 mb-2">Domain Name</label>
+                    <div className="relative">
+                      <Globe size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"/>
+                      <input value={domainName} onChange={e => setDomainName(e.target.value.toLowerCase().trim())}
+                        placeholder="mycompany.com"
+                        className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-[15px] outline-none focus:border-purple-400"/>
+                    </div>
+                    <p className="mt-2 text-[12px] text-gray-400">
+                      You need to own this domain and have access to its DNS settings. We'll provide the MX records to configure after purchase.
+                    </p>
                   </div>
-                  <p className="mt-2 text-[12px] text-gray-400">
-                    You need to own this domain and have access to its DNS settings. We'll provide the MX records to configure after purchase.
-                  </p>
+                  <div>
+                    <label className="block text-[13px] font-semibold text-gray-700 mb-2">Number of Mailboxes</label>
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => setMailboxQty(q => Math.max(1, q - 1))}
+                        className="w-9 h-9 rounded-xl border border-gray-200 text-[18px] font-bold text-gray-600 flex items-center justify-center hover:bg-gray-50">−</button>
+                      <input type="number" min={1} max={selectedPlan?.mailboxes ?? 100} value={mailboxQty}
+                        onChange={e => setMailboxQty(Math.max(1, Math.min(selectedPlan?.mailboxes ?? 100, Number(e.target.value))))}
+                        className="w-20 text-center border border-gray-200 rounded-xl py-2 text-[15px] font-bold outline-none focus:border-purple-400"/>
+                      <button onClick={() => setMailboxQty(q => Math.min(selectedPlan?.mailboxes ?? 100, q + 1))}
+                        className="w-9 h-9 rounded-xl border border-gray-200 text-[18px] font-bold text-gray-600 flex items-center justify-center hover:bg-gray-50">+</button>
+                      <span className="text-[12px] text-gray-400">Max {selectedPlan?.mailboxes} on {selectedPlan?.name} plan</span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* What you get */}
@@ -407,7 +439,7 @@ export default function CartEmail() {
                 <>
                   <div className="rounded-xl bg-purple-50 border border-purple-100 p-3 mb-4">
                     <div className="font-bold text-gray-900 text-[14px]">{selectedPlan.name}</div>
-                    <div className="text-[12px] text-gray-500 mt-0.5">{CYCLE_LABELS[cycle]} · {selectedPlan.mailboxes} mailboxes</div>
+                    <div className="text-[12px] text-gray-500 mt-0.5">{CYCLE_LABELS[cycle]} · {mailboxQty} mailbox{mailboxQty > 1 ? "es" : ""}</div>
                     {domainName && <div className="text-[12px] text-gray-500 mt-0.5">📧 @{domainName}</div>}
                     <div className="font-extrabold text-[17px] mt-2" style={{ color: BRAND }}>{formatPrice(price)}</div>
                   </div>

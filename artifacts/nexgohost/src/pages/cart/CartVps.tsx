@@ -2,7 +2,7 @@
  * /cart/vps — VPS Plan Cart Page
  * Flow: Plan → Region → OS → Configure → Payment
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation, useSearch } from "wouter";
 import {
   Zap, Globe, Cpu, MemoryStick, HardDrive, Wifi, Server, Check, ChevronRight,
@@ -59,10 +59,12 @@ function planPrice(p: VpsPlan, cycle: Cycle): number {
 
 function generatePassword(): string {
   const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%";
-  return Array.from({ length: 16 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes).map(b => chars[b % chars.length]).join("");
 }
 
-type Step = "plan" | "region" | "os" | "configure" | "payment";
+type Step = "plan" | "region" | "os" | "configure" | "review" | "payment";
 
 export default function CartVps() {
   const { user } = useAuth();
@@ -103,6 +105,8 @@ export default function CartVps() {
   const [creditBalance, setCreditBalance] = useState(0);
   const [placing, setPlacing] = useState(false);
 
+  const stateRestored = useRef(false);
+
   useEffect(() => {
     Promise.all([
       fetch("/api/vps-plans").then(r => r.json()),
@@ -113,6 +117,34 @@ export default function CartVps() {
       setPlans(formatted);
       setLocations(locs);
       setOsTemplates(oses);
+      // Restore pre-login state saved to localStorage
+      if (!stateRestored.current) {
+        stateRestored.current = true;
+        try {
+          const saved = localStorage.getItem("cart_vps_state");
+          if (saved) {
+            const s = JSON.parse(saved);
+            localStorage.removeItem("cart_vps_state");
+            if (s.planId) {
+              const pre = formatted.find(p => String(p.id) === String(s.planId));
+              if (pre) setSelectedPlan(pre);
+            }
+            if (s.cycle) setCycle(s.cycle);
+            if (s.hostname) setHostname(s.hostname);
+            if (s.weeklyBackups !== undefined) setWeeklyBackups(s.weeklyBackups);
+            if (s.promoCode) setPromoCode(s.promoCode);
+            if (s.locationId && locs.length) {
+              const loc = locs.find((l: any) => String(l.id) === String(s.locationId));
+              if (loc) setSelectedLocation(loc);
+            }
+            if (s.osId && oses.length) {
+              const os = oses.find((o: any) => String(o.id) === String(s.osId));
+              if (os) setSelectedOs(os);
+            }
+            return;
+          }
+        } catch {}
+      }
       if (preselectedId) {
         const pre = formatted.find(p => p.id === preselectedId);
         if (pre) { setSelectedPlan(pre); setStep("region"); }
@@ -152,8 +184,16 @@ export default function CartVps() {
     finally { setPromoLoading(false); }
   };
 
+  const saveCartState = () => {
+    localStorage.setItem("cart_vps_state", JSON.stringify({
+      planId: selectedPlan?.id, cycle, locationId: selectedLocation?.id, osId: selectedOs?.id,
+      hostname, rootPassword, weeklyBackups, promoCode,
+    }));
+  };
+
   const placeOrder = async () => {
     if (!user) {
+      saveCartState();
       localStorage.setItem("postLoginRedirect", "/cart/vps");
       navigate("/client/login?redirect=/cart/vps");
       return;
@@ -178,8 +218,16 @@ export default function CartVps() {
       };
       if (promoApplied) body.promoCode = promoCode;
       const d = await apiFetch("/api/checkout", { method: "POST", body: JSON.stringify(body) });
+      // Payment routing: gateway redirect (SafePay) vs manual invoice
+      const pm = paymentMethods.find(p => p.id === selectedPm);
+      if (pm?.type === "safepay" && d.invoiceId) {
+        try {
+          const sp = await apiFetch("/api/payments/safepay/initiate", { method: "POST", body: JSON.stringify({ invoiceId: d.invoiceId }) });
+          if (sp.checkoutUrl) { window.location.href = sp.checkoutUrl; return; }
+        } catch {}
+      }
       toast({ title: "VPS order placed!", description: "Your server will be provisioned shortly." });
-      navigate(`/dashboard/invoices/${d.invoiceId}`);
+      navigate(d.invoiceId ? `/dashboard/invoices/${d.invoiceId}` : "/dashboard/invoices");
     } catch (err: any) {
       toast({ title: "Order failed", description: err.message, variant: "destructive" });
     } finally { setPlacing(false); }
@@ -195,6 +243,7 @@ export default function CartVps() {
     { key: "region", label: "Region" },
     { key: "os", label: "OS" },
     { key: "configure", label: "Configure" },
+    { key: "review", label: "Review" },
     { key: "payment", label: "Payment" },
   ];
   const stepIdx = STEPS.findIndex(s => s.key === step);
@@ -519,16 +568,72 @@ export default function CartVps() {
 
                 <div className="mt-8 flex items-center justify-between">
                   <button onClick={() => setStep("os")} className="px-5 py-2.5 rounded-xl text-gray-600 font-semibold text-[14px] border border-gray-200 hover:bg-gray-50">← Back</button>
-                  <button onClick={() => hostname && rootPassword && setStep("payment")} disabled={!hostname || !rootPassword}
+                  <button onClick={() => hostname && rootPassword && setStep("review")} disabled={!hostname || !rootPassword}
                     className="px-8 py-3 rounded-xl text-white font-bold text-[15px] flex items-center gap-2 disabled:opacity-40 hover:scale-[1.02] transition-all"
                     style={{ background: G }}>
-                    Continue to Payment <ArrowRight size={18}/>
+                    Review Order <ArrowRight size={18}/>
                   </button>
                 </div>
               </div>
             )}
 
-            {/* Step 5: Payment */}
+            {/* Step 5: Review */}
+            {step === "review" && selectedPlan && (
+              <div>
+                <h1 className="text-2xl font-extrabold text-gray-900 mb-1">Review Your Order</h1>
+                <p className="text-gray-500 mb-6 text-[14px]">Double-check everything before payment.</p>
+                <div className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4 shadow-sm">
+                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                    <span className="text-[13px] font-semibold text-gray-500 uppercase tracking-wide">Plan</span>
+                    <span className="font-bold text-gray-900">{selectedPlan.name}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                    <span className="text-[13px] font-semibold text-gray-500 uppercase tracking-wide">Billing</span>
+                    <span className="font-semibold text-gray-800">{cycle.charAt(0).toUpperCase() + cycle.slice(1)}</span>
+                  </div>
+                  {selectedLocation && (
+                    <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                      <span className="text-[13px] font-semibold text-gray-500 uppercase tracking-wide">Location</span>
+                      <span className="font-semibold text-gray-800">{selectedLocation.countryName} — {selectedLocation.city}</span>
+                    </div>
+                  )}
+                  {selectedOs && (
+                    <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                      <span className="text-[13px] font-semibold text-gray-500 uppercase tracking-wide">OS</span>
+                      <span className="font-semibold text-gray-800">{selectedOs.label}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                    <span className="text-[13px] font-semibold text-gray-500 uppercase tracking-wide">Hostname</span>
+                    <span className="font-mono text-[13px] text-gray-800">{hostname}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                    <span className="text-[13px] font-semibold text-gray-500 uppercase tracking-wide">Root Password</span>
+                    <span className="font-mono text-[13px] text-gray-400">{'•'.repeat(Math.min(rootPassword.length, 12))}</span>
+                  </div>
+                  {weeklyBackups && (
+                    <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                      <span className="text-[13px] font-semibold text-gray-500 uppercase tracking-wide">Backups</span>
+                      <span className="font-semibold text-emerald-600">✓ Weekly (+{formatPrice(BACKUP_PRICE)}/mo)</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center pt-2">
+                    <span className="text-[14px] font-bold text-gray-700">Total</span>
+                    <span className="text-[20px] font-extrabold" style={{ color: BRAND }}>{formatPrice(total)}</span>
+                  </div>
+                </div>
+                <div className="mt-8 flex items-center justify-between">
+                  <button onClick={() => setStep("configure")} className="px-5 py-2.5 rounded-xl text-gray-600 font-semibold text-[14px] border border-gray-200 hover:bg-gray-50">← Back</button>
+                  <button onClick={() => setStep("payment")}
+                    className="px-8 py-3 rounded-xl text-white font-bold text-[15px] flex items-center gap-2 hover:scale-[1.02] transition-all"
+                    style={{ background: G }}>
+                    Proceed to Payment <ArrowRight size={18}/>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 6: Payment */}
             {step === "payment" && (
               <div>
                 <h1 className="text-2xl font-extrabold text-gray-900 mb-1">Payment</h1>

@@ -78,6 +78,16 @@ export default function CartDomainRegister() {
   useEffect(() => {
     fetch("/api/domain-search/tlds").then(r => r.json()).then(setTlds).catch(() => {});
     inputRef.current?.focus();
+    // Restore pre-login state saved to localStorage
+    try {
+      const saved = localStorage.getItem("cart_domain_register_state");
+      if (saved) {
+        const s = JSON.parse(saved);
+        localStorage.removeItem("cart_domain_register_state");
+        if (s.years) setYears(Number(s.years));
+        if (s.promoCode) setPromoCode(s.promoCode);
+      }
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -125,8 +135,15 @@ export default function CartDomainRegister() {
     finally { setPromoLoading(false); }
   };
 
+  const saveCartState = () => {
+    localStorage.setItem("cart_domain_register_state", JSON.stringify({
+      domain: selectedDomain?.domain, years, promoCode,
+    }));
+  };
+
   const placeOrder = async () => {
     if (!user) {
+      saveCartState();
       localStorage.setItem("postLoginRedirect", "/cart/domain/register");
       navigate("/client/login?redirect=/cart/domain/register");
       return;
@@ -140,11 +157,20 @@ export default function CartDomainRegister() {
         paymentMethodId: selectedPm || undefined,
         applyCredits,
         domainAmount: getDomainPrice(selectedDomain!),
+        registrationYears: years,
       };
       if (promoApplied) body.promoCode = promoCode;
       const d = await apiFetch("/api/checkout", { method: "POST", body: JSON.stringify(body) });
+      // Payment routing: gateway redirect (SafePay) vs manual invoice
+      const pm = paymentMethods.find(p => p.id === selectedPm);
+      if (pm?.type === "safepay" && d.invoiceId) {
+        try {
+          const sp = await apiFetch("/api/payments/safepay/initiate", { method: "POST", body: JSON.stringify({ invoiceId: d.invoiceId }) });
+          if (sp.checkoutUrl) { window.location.href = sp.checkoutUrl; return; }
+        } catch {}
+      }
       toast({ title: "Order placed!", description: "Domain registration initiated." });
-      navigate(`/dashboard/invoices/${d.invoiceId}`);
+      navigate(d.invoiceId ? `/dashboard/invoices/${d.invoiceId}` : "/dashboard/invoices");
     } catch (err: any) {
       toast({ title: "Order failed", description: err.message, variant: "destructive" });
     } finally { setPlacing(false); }
@@ -302,18 +328,18 @@ export default function CartDomainRegister() {
                 {selectedDomain && (
                   <div className="mt-6 bg-white rounded-2xl border border-gray-200 p-5">
                     <div className="font-semibold text-gray-800 text-[14px] mb-3">Registration Period</div>
-                    <div className="flex gap-2">
-                      {[1,2,3].map(y => {
+                    <div className="flex flex-wrap gap-2">
+                      {[1,2,3,4,5].map(y => {
                         const tldRow = tlds.find(t => t.tld === selectedDomain.tld);
                         const hasPrice = y === 1 || (y === 2 && tldRow?.register2YearPrice) || (y === 3 && tldRow?.register3YearPrice);
-                        if (!hasPrice) return null;
-                        const p = y === 1 ? tldRow?.registerPrice : y === 2 ? tldRow?.register2YearPrice : tldRow?.register3YearPrice;
+                        const p = y === 1 ? tldRow?.registerPrice : y === 2 ? tldRow?.register2YearPrice : y === 3 ? tldRow?.register3YearPrice : y === 4 ? (tldRow?.register3YearPrice ? Number(tldRow.register3YearPrice) / 3 * 4 : null) : (tldRow?.register3YearPrice ? Number(tldRow.register3YearPrice) / 3 * 5 : null);
+                        if (!hasPrice && y > 3) return null;
                         return (
                           <button key={y} onClick={() => setYears(y)}
-                            className="flex-1 p-3 rounded-xl border-2 text-center transition-all"
+                            className="flex-1 min-w-[72px] p-3 rounded-xl border-2 text-center transition-all"
                             style={{ borderColor: years === y ? BRAND : "#E5E7EB", background: years === y ? "#FAF5FF" : "#fff" }}>
-                            <div className="font-bold text-[14px]" style={{ color: years === y ? BRAND : "#374151" }}>{y} Year{y > 1 ? "s" : ""}</div>
-                            <div className="text-[12px] text-gray-500">{p ? formatPrice(Number(p)) : ""}</div>
+                            <div className="font-bold text-[14px]" style={{ color: years === y ? BRAND : "#374151" }}>{y} Yr{y > 1 ? "s" : ""}</div>
+                            <div className="text-[11px] text-gray-500">{p ? formatPrice(Number(p)) : "—"}</div>
                           </button>
                         );
                       })}
