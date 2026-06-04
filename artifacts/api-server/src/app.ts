@@ -34,21 +34,37 @@ app.use(helmet({
   referrerPolicy: { policy: "strict-origin-when-cross-origin" },
 }));
 
-// ── CORS: allow noehost.com subdomains + Replit dev domains ───────────────────
-const ALLOWED_ORIGINS = [
+// ── CORS — precise allowlist using actual deployment URLs ────────────────────
+// Static production origins
+const STATIC_ORIGINS: RegExp[] = [
   /^https?:\/\/(client|cart|admin|www)\.noehost\.com$/,
   /^https?:\/\/noehost\.com$/,
-  /\.replit\.dev$/,
-  /\.replit\.app$/,
-  /\.repl\.co$/,
-  /\.sisko\.replit\.dev$/,
+  /^http:\/\/localhost(:\d+)?$/,         // local dev only
 ];
+
+// Dynamic origins: exact Replit-issued hostnames from env vars (not wildcard)
+const DYNAMIC_ORIGINS: string[] = [];
+if (process.env["REPLIT_DEV_DOMAIN"]) {
+  // Allow both http and https for the specific dev domain (one container, two ports)
+  DYNAMIC_ORIGINS.push(`https://${process.env["REPLIT_DEV_DOMAIN"]}`);
+  DYNAMIC_ORIGINS.push(`http://${process.env["REPLIT_DEV_DOMAIN"]}`);
+}
+if (process.env["REPLIT_DOMAINS"]) {
+  for (const d of process.env["REPLIT_DOMAINS"].split(",").map(s => s.trim()).filter(Boolean)) {
+    DYNAMIC_ORIGINS.push(`https://${d}`);
+    DYNAMIC_ORIGINS.push(`http://${d}`);
+  }
+}
+if (process.env["APP_URL"]) {
+  DYNAMIC_ORIGINS.push(process.env["APP_URL"].replace(/\/$/, ""));
+}
 
 app.use(cors({
   origin: (origin, cb) => {
-    if (!origin) return cb(null, true); // non-browser requests (curl, mobile, etc.)
-    const allowed = ALLOWED_ORIGINS.some(pattern => pattern.test(origin));
-    cb(null, allowed ? origin : false);
+    if (!origin) return cb(null, true); // non-browser / mobile / server-to-server
+    const exactMatch = DYNAMIC_ORIGINS.includes(origin);
+    const patternMatch = STATIC_ORIGINS.some(re => re.test(origin));
+    cb(null, (exactMatch || patternMatch) ? origin : false);
   },
   credentials: true,
 }));

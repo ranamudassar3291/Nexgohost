@@ -822,6 +822,11 @@ async function runStartupMigrations() {
       "ALTER TABLE hosting_services ADD COLUMN IF NOT EXISTS usage_cache TEXT",
       "ALTER TABLE hosting_services ADD COLUMN IF NOT EXISTS usage_cached_at TIMESTAMP",
       "ALTER TABLE hosting_services ADD COLUMN IF NOT EXISTS free_domain_id TEXT",
+      // Cron-critical columns — billing:auto_suspend, billing:auto_terminate,
+      // billing:renewal_invoices, hosting_renewal_reminders all depend on these.
+      "ALTER TABLE hosting_services ADD COLUMN IF NOT EXISTS auto_renew BOOLEAN NOT NULL DEFAULT true",
+      "ALTER TABLE hosting_services ADD COLUMN IF NOT EXISTS next_due_date TIMESTAMP",
+      "ALTER TABLE hosting_services ADD COLUMN IF NOT EXISTS billing_cycle TEXT NOT NULL DEFAULT 'monthly'",
     ];
     for (const stmt of hostingServiceCols) {
       await db.execute(sql.raw(stmt));
@@ -834,6 +839,9 @@ async function runStartupMigrations() {
       "ALTER TABLE domains ADD COLUMN IF NOT EXISTS epp_code TEXT",
       "ALTER TABLE domains ADD COLUMN IF NOT EXISTS last_lock_change TIMESTAMP",
       "ALTER TABLE domains ADD COLUMN IF NOT EXISTS lock_override_by_admin BOOLEAN DEFAULT false",
+      // Cron-critical — domains:renewal_check reads auto_renew and writes next_due_date
+      "ALTER TABLE domains ADD COLUMN IF NOT EXISTS auto_renew BOOLEAN NOT NULL DEFAULT true",
+      "ALTER TABLE domains ADD COLUMN IF NOT EXISTS next_due_date TIMESTAMP",
     ];
     for (const stmt of domainCols) {
       await db.execute(sql.raw(stmt));

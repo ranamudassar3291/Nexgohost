@@ -331,7 +331,11 @@ export default function VpsOrderPage() {
   // ── Place order ────────────────────────────────────────────────────────────
   const handlePlaceOrder = async () => {
     const token = localStorage.getItem('token') || localStorage.getItem('noehost_token');
-    if (!token) { setLocation('/login'); return; }
+    if (!token) {
+      localStorage.setItem("postLoginRedirect", window.location.pathname + window.location.search);
+      setLocation('/login');
+      return;
+    }
     if (!selectedPaymentId && finalAmount > 0) { setOrderError('Please select a payment method'); return; }
     setOrdering(true);
     setOrderError('');

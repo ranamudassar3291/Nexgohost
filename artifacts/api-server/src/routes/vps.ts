@@ -370,9 +370,24 @@ router.put("/admin/vps-plans/:id", authenticate, requireAdmin, async (req: AuthR
 
 router.delete("/admin/vps-plans/:id", authenticate, requireAdmin, async (req, res) => {
   try {
-    await db.delete(vpsPlansTable).where(eq(vpsPlansTable.id, req.params.id));
+    const id = req.params.id;
+    const [plan] = await db.select({ id: vpsPlansTable.id }).from(vpsPlansTable).where(eq(vpsPlansTable.id, id)).limit(1);
+    if (!plan) { res.status(404).json({ error: "VPS plan not found" }); return; }
+    // Check if any active services reference this plan before deleting
+    const [inUse] = await db.select({ id: hostingServicesTable.id })
+      .from(hostingServicesTable)
+      .where(and(eq(hostingServicesTable.planId, id), eq(hostingServicesTable.status, "active")))
+      .limit(1);
+    if (inUse) {
+      res.status(409).json({ error: "Cannot delete a VPS plan that has active services. Deactivate it instead." });
+      return;
+    }
+    await db.delete(vpsPlansTable).where(eq(vpsPlansTable.id, id));
     res.json({ success: true });
-  } catch (err) { console.error(err); res.status(500).json({ error: "Server error" }); }
+  } catch (err: any) {
+    console.error("[VPS] DELETE plan error:", err.message);
+    res.status(500).json({ error: "Server error", details: err.message });
+  }
 });
 
 // OS Templates

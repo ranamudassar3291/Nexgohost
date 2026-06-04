@@ -158,9 +158,18 @@ router.put("/admin/currencies/:id", authenticate, requireAdmin, async (req, res)
 
 // DELETE /api/admin/currencies/:id
 router.delete("/admin/currencies/:id", authenticate, requireAdmin, async (req, res) => {
-  const { id } = req.params;
-  await db.delete(currenciesTable).where(eq(currenciesTable.id, id));
-  res.json({ success: true });
+  try {
+    const { id } = req.params;
+    // Prevent deleting the default/base currency
+    const [cur] = await db.select().from(currenciesTable).where(eq(currenciesTable.id, id)).limit(1);
+    if (!cur) { res.status(404).json({ error: "Currency not found" }); return; }
+    if (cur.isDefault) { res.status(400).json({ error: "Cannot delete the default currency" }); return; }
+    await db.delete(currenciesTable).where(eq(currenciesTable.id, id));
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error("[CURRENCIES] DELETE error:", err.message);
+    res.status(500).json({ error: "Failed to delete currency", details: err.message });
+  }
 });
 
 // POST /api/admin/currencies/refresh-rates — force-fetch live rates (bypasses 24h cache)

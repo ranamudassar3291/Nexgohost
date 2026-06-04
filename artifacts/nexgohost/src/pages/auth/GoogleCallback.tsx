@@ -60,8 +60,10 @@ export default function GoogleCallback() {
 
     setStatus("success");
     setMessage(`Welcome${firstName ? `, ${firstName}` : ""}! Signing you in...`);
+    const savedRedirect = localStorage.getItem("postLoginRedirect") || "/dashboard";
+    localStorage.removeItem("postLoginRedirect");
     login(token);
-    setTimeout(() => setLocation("/dashboard"), 1200);
+    setTimeout(() => setLocation(savedRedirect), 1200);
   }, []);
 
   async function handleVerify(e: React.FormEvent) {
@@ -77,9 +79,11 @@ export default function GoogleCallback() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || data.error || "Verification failed");
       // verify-email now returns a full auth token — use it (not the scoped tempToken)
+      const savedRedirect = localStorage.getItem("postLoginRedirect") || "/dashboard";
+      localStorage.removeItem("postLoginRedirect");
       login(data.token);
       toast({ title: "Email verified!", description: "Welcome to Noehost." });
-      setLocation("/dashboard");
+      setLocation(savedRedirect);
     } catch (err: any) {
       toast({ title: "Verification failed", description: err.message, variant: "destructive" });
     } finally {
