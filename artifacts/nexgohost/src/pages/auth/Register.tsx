@@ -253,7 +253,8 @@ export default function Register() {
   async function redirect() {
     await mergeGuestCart();
     const p = new URLSearchParams(window.location.search);
-    const next = p.get("next") || p.get("redirect");
+    const next = p.get("next") || p.get("redirect") || localStorage.getItem("postLoginRedirect");
+    if (next) localStorage.removeItem("postLoginRedirect");
     const hasPendingCart = (() => { try { return JSON.parse(localStorage.getItem("noehost_website_cart") || "[]").length > 0; } catch { return false; } })();
     setLocation(next || (hasPendingCart ? "/dashboard/orders/new" : "/dashboard"));
   }

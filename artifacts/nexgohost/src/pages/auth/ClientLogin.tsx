@@ -84,7 +84,8 @@ export default function ClientLogin() {
 
   if (user) {
     const params = new URLSearchParams(window.location.search);
-    const redirectTo = params.get("redirect");
+    const redirectTo = params.get("redirect") || params.get("next") || localStorage.getItem("postLoginRedirect");
+    if (redirectTo) localStorage.removeItem("postLoginRedirect");
     return <Redirect to={redirectTo || (user.role === "admin" ? "/admin/dashboard" : "/dashboard")} />;
   }
 

@@ -92,6 +92,34 @@ export default function UnifiedCart() {
 
   useEffect(() => { if (user) setIsLoggedIn(true); }, [user]);
 
+  // Restore state saved before login redirect
+  useEffect(() => {
+    const saved = localStorage.getItem("cart_unified_state");
+    if (saved) {
+      try {
+        const s = JSON.parse(saved);
+        localStorage.removeItem("cart_unified_state");
+        if (s.domainResults) setDomainResults(s.domainResults);
+        if (s.domainSelectedTld) setDomainSelectedTld(s.domainSelectedTld);
+        if (s.domainInputs) setDomainInputs(s.domainInputs);
+      } catch {}
+    }
+  }, []);
+
+  // Auto-advance to payment when logged in and domain already selected
+  useEffect(() => {
+    if (isLoggedIn && hasDomainStep && step === "domain") {
+      const hostingItems = items.filter(i => i.productType === "hosting");
+      const allDomainsSelected = hostingItems.every(item => {
+        const domainInput = domainInputs[item.packageId] ?? item.domainName ?? "";
+        return domainInput.trim().length > 0 && domainSelectedTld[item.packageId];
+      });
+      if (allDomainsSelected) {
+        setStep("payment");
+      }
+    }
+  }, [isLoggedIn, step, hasDomainStep, items, domainInputs, domainSelectedTld]);
+
   const [couponInput, setCouponInput] = useState(coupon?.code ?? "");
   const [referralInput, setReferralInput] = useState(referral?.code ?? "");
 
@@ -282,11 +310,25 @@ export default function UnifiedCart() {
     } finally { setPlacing(false); }
   }
 
-  // ── Empty cart → redirect to homepage ─────────────────────────────────────
-  if (items.length === 0) {
-    window.location.replace("/");
-    return null;
-  }
+  // ── Login redirect helpers ────────────────────────────────────────────────
+  const saveCartState = () => {
+    localStorage.setItem("cart_unified_state", JSON.stringify({
+      domainResults, domainSelectedTld, domainInputs,
+    }));
+  };
+  const redirectToLogin = () => {
+    saveCartState();
+    localStorage.setItem("postLoginRedirect", "/cart");
+    setLocation(`/login?next=${encodeURIComponent("/cart")}`);
+  };
+  const redirectToRegister = () => {
+    saveCartState();
+    localStorage.setItem("postLoginRedirect", "/cart");
+    setLocation(`/register?next=${encodeURIComponent("/cart")}`);
+  };
+
+  // ── Empty cart ────────────────────────────────────────────────────────────
+  const isEmptyCart = items.length === 0;
 
   const hostingItem = items.find(i => i.productType === "hosting");
   // Config step appears when cart has hosting, VPS, or email items
@@ -679,13 +721,13 @@ export default function UnifiedCart() {
                               </div>
                             </div>
                             <button
-                              onClick={() => setLocation(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`)}
+                              onClick={redirectToLogin}
                               className="w-full h-11 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all hover:brightness-110"
                               style={{ background: G }}>
                               <User size={15} /> Sign In
                             </button>
                             <button
-                              onClick={() => setLocation(`/register?next=${encodeURIComponent(window.location.pathname + window.location.search)}`)}
+                              onClick={redirectToRegister}
                               className="w-full h-11 rounded-xl border-2 border-gray-200 text-sm font-semibold text-gray-700 flex items-center justify-center gap-2 transition-all hover:bg-gray-50 hover:border-gray-300 active:scale-[0.99]">
                               <UserPlus size={15} /> Create Account
                             </button>

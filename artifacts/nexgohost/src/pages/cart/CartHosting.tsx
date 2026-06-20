@@ -205,6 +205,12 @@ export default function CartHosting() {
             if (s.promoCode) setPromoCode(s.promoCode);
             if (s.freeDomainName) setFreeDomainName(s.freeDomainName);
             if (s.freeDomainTld) setFreeDomainTld(s.freeDomainTld);
+            if (s.domainResults) setDomainResults(s.domainResults);
+            if (s.domainSelectedTld) setDomainSelectedTld(s.domainSelectedTld);
+            // Auto-advance to payment if domain was already selected (came from login redirect)
+            if (s.domainSelectedTld && s.domainInput) {
+              setTimeout(() => setStep("payment"), 50);
+            }
             return;
           }
         } catch {}
@@ -300,8 +306,9 @@ export default function CartHosting() {
   const saveCartState = useCallback(() => {
     localStorage.setItem("cart_hosting_state", JSON.stringify({
       plan: selectedPlan?.id, cycle, domainMode, domainInput, domainPrice, freeDomainName, freeDomainTld, promoCode,
+      domainResults, domainSelectedTld,
     }));
-  }, [selectedPlan, cycle, domainMode, domainInput, domainPrice, freeDomainName, freeDomainTld, promoCode]);
+  }, [selectedPlan, cycle, domainMode, domainInput, domainPrice, freeDomainName, freeDomainTld, promoCode, domainResults, domainSelectedTld]);
 
   const placeOrder = async () => {
     if (!user) {
