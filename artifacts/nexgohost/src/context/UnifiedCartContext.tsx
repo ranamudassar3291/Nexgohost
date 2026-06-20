@@ -226,7 +226,10 @@ export function UnifiedCartProvider({ children }: { children: ReactNode }) {
   const getSubtotal = useCallback(() => {
     return items.reduce((sum, item) => {
       const price = getItemPrice(item);
-      return sum + price + (item.domainAction === "register" && item.domainPrice ? item.domainPrice : 0);
+      // Check if domain is free (yearly cycle + freeDomainEnabled + TLD in freeDomainTlds)
+      const isFreeDomain = item.domainAction === "register" && item.domainName && item.billingCycle === "yearly" && item.freeDomainEnabled && item.freeDomainTlds && item.freeDomainTlds.length > 0 && item.freeDomainTlds.includes(item.domainName.slice(item.domainName.indexOf(".")).toLowerCase());
+      const domainPrice = isFreeDomain ? 0 : (item.domainAction === "register" ? (item.domainPrice ?? 0) : 0);
+      return sum + price + domainPrice;
     }, 0);
   }, [items]);
 

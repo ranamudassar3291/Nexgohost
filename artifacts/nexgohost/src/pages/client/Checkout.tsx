@@ -140,7 +140,8 @@ export default function Checkout() {
   const pkgFreeDomainEnabled = pkgDetails?.freeDomainEnabled ?? false;
   const pkgFreeTlds: string[] = Array.isArray(pkgDetails?.freeDomainTlds) ? pkgDetails.freeDomainTlds : [];
   const isYearly = billingCycle === "yearly";
-  const isDomainFree = isYearly && pkgFreeDomainEnabled && domainChoice === "register";
+  const domainTld = domainName && domainName.includes(".") ? domainName.slice(domainName.indexOf(".")).toLowerCase() : "";
+  const isDomainFree = isYearly && pkgFreeDomainEnabled && domainChoice === "register" && pkgFreeTlds.length > 0 && domainTld ? pkgFreeTlds.includes(domainTld) : false;
 
   useEffect(() => {
     const saved = params.get("domain_name") || params.get("domain") || sessionStorage.getItem("domain_search") || localStorage.getItem("order_wizard_domain");
@@ -179,6 +180,10 @@ export default function Checkout() {
   const getDomainPrice = (domain: string, period: 1 | 2 | 3): number => {
     const ext = getDomainExt(domain);
     if (!ext) return 0;
+    // Check if this TLD is eligible for free domain (yearly plan + freeDomainEnabled)
+    const domainTld = domain.includes(".") ? domain.slice(domain.indexOf(".")).toLowerCase() : "";
+    const isFree = isYearly && pkgFreeDomainEnabled && pkgFreeTlds.length > 0 && domainTld ? pkgFreeTlds.includes(domainTld) : false;
+    if (isFree) return 0;
     if (domain.toLowerCase().endsWith(".pk")) return Number(ext.register2YearPrice ?? ext.registerPrice ?? 0);
     return Number(ext.registerPrice ?? 0);
   };
@@ -199,9 +204,7 @@ export default function Checkout() {
     if (!parts[0]) { setDomainAvail(null); return; }
     setCheckingDomain(true); setDomainAvail(null);
     try {
-      const res = await fetch(`/api/domains/availability?domain=${encodeURIComponent(parts[0])}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token") || localStorage.getItem("noehost_token") || ""}` },
-      });
+      const res = await fetch(`/api/domains/availability?domain=${encodeURIComponent(parts[0])}`);
       const data = await res.json();
       if (Array.isArray(data?.results)) {
         const tld = "." + parts.slice(1).join(".");

@@ -153,7 +153,7 @@ export default function UnifiedCart() {
       setDomainAvail(p => ({ ...p, [pkgId]: null }));
       try {
         const parts = d.split(".");
-        const r = await fetch(`/api/domains/availability?domain=${encodeURIComponent(parts[0])}`, { headers: authHeaders() });
+        const r = await fetch(`/api/domains/availability?domain=${encodeURIComponent(parts[0])}`);
         const data = await r.json();
         if (Array.isArray(data?.results)) {
           const tld = "." + parts.slice(1).join(".");
@@ -165,13 +165,17 @@ export default function UnifiedCart() {
     }, 700);
   }
 
-  function getDomainPrice(domain: string): number {
+  function getDomainPrice(domain: string, freeDomainTlds?: string[]): number {
     if (!domain || !domain.includes(".")) return 0;
     const parts = domain.split(".");
     const long = "." + parts.slice(-2).join(".");
     const short = "." + parts[parts.length - 1];
     const ext = domainExtensions.find(e => e.extension === long) || domainExtensions.find(e => e.extension === short);
     if (!ext) return 0;
+    // Check if this TLD is eligible for free domain
+    const domainTld = domain.includes(".") ? domain.slice(domain.indexOf(".")).toLowerCase() : "";
+    const isFree = freeDomainTlds && freeDomainTlds.length > 0 && domainTld ? freeDomainTlds.includes(domainTld) : false;
+    if (isFree) return 0;
     return domain.toLowerCase().endsWith(".pk") ? Number(ext.register2YearPrice ?? ext.registerPrice ?? 0) : Number(ext.registerPrice ?? 0);
   }
 
@@ -437,7 +441,7 @@ export default function UnifiedCart() {
                                     <label key={opt.value} className="flex items-center gap-3 cursor-pointer">
                                       <input type="radio" name={`domain-step-${item.packageId}`}
                                         checked={(item.domainAction ?? "skip") === opt.value}
-                                        onChange={() => updateDomain(item.packageId, domainInput, opt.value as any, getDomainPrice(domainInput))}
+                                        onChange={() => updateDomain(item.packageId, domainInput, opt.value as any, getDomainPrice(domainInput, item.freeDomainTlds))}
                                         className="accent-primary" />
                                       <span className="text-sm text-gray-700">{opt.label}</span>
                                     </label>
@@ -468,7 +472,7 @@ export default function UnifiedCart() {
                                           const v = e.target.value;
                                           setDomainInputs(p => ({ ...p, [item.packageId]: v }));
                                           checkDomain(item.packageId, v);
-                                          updateDomain(item.packageId, v, "register", getDomainPrice(v));
+                                          updateDomain(item.packageId, v, "register", getDomainPrice(v, item.freeDomainTlds));
                                         }}
                                         placeholder="example.com"
                                         className="w-full pl-8 pr-10 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" />
@@ -483,7 +487,7 @@ export default function UnifiedCart() {
                                         <CheckCircle2 size={11} /> Available!
                                         {freeDomainEligible
                                           ? <span className="ml-1 font-bold">FREE (yearly plan)</span>
-                                          : getDomainPrice(domainInput) > 0 && <span className="ml-1 text-gray-500">+ {formatPrice(getDomainPrice(domainInput))}</span>}
+                                          : getDomainPrice(domainInput, item.freeDomainTlds) > 0 && <span className="ml-1 text-gray-500">+ {formatPrice(getDomainPrice(domainInput, item.freeDomainTlds))}</span>}
                                       </p>
                                     )}
                                     {avail === "taken" && <p className="text-xs text-red-500 mt-1.5">This domain is taken. Try another.</p>}
@@ -716,7 +720,7 @@ export default function UnifiedCart() {
               <div className="space-y-3">
                 {items.map(item => {
                   const price = getItemPrice(item);
-                  const domainCost = item.domainAction === "register" && item.domainName && !(item.billingCycle === "yearly" && item.freeDomainEnabled) ? (item.domainPrice ?? getDomainPrice(item.domainName)) : 0;
+                  const domainCost = item.domainAction === "register" && item.domainName ? (item.domainPrice ?? getDomainPrice(item.domainName, item.freeDomainTlds)) : 0;
                   return (
                     <div key={item.packageId}>
                       <div className="flex justify-between text-sm">
