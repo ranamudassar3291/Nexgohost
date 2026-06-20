@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ShoppingCart, Trash2, ChevronDown, ChevronRight, ShieldCheck,
   Tag, Gift, Globe, Server, Zap, Mail, Package, Lock, CheckCircle2,
-  Eye, EyeOff, User, UserPlus, Loader2, AlertCircle, CreditCard,
+  User, UserPlus, Loader2, AlertCircle, CreditCard,
   Smartphone, Landmark, Shield, BadgeCheck, Search, X, Check,
   ArrowLeft, Ticket,
 } from "lucide-react";
@@ -17,6 +17,7 @@ import {
   CYCLE_LABELS, CYCLE_SUFFIX, CYCLE_MONTHS,
   type BillingCycle, type UnifiedCartItem,
 } from "@/context/UnifiedCartContext";
+import { BrandingLogo } from "@/components/BrandingLogo";
 import CaptchaWidget from "@/components/CaptchaWidget";
 
 const BRAND = "#6B46C1";
@@ -78,8 +79,7 @@ export default function UnifiedCart() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { formatPrice, currency } = useCurrency();
-  const { login: authLogin, user } = useAuth();
-  const qc = useQueryClient();
+  const { user } = useAuth();
   const {
     items, removeItem, updateCycle, updateDomain, clearCart,
     coupon, referral, couponError, referralError, couponLoading, referralLoading,
@@ -112,26 +112,7 @@ export default function UnifiedCart() {
   const [placing, setPlacing] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
-  // Inline auth
-  const [authMode, setAuthMode] = useState<"login" | "register" | "verify">("login");
-  const [authEmail, setAuthEmail] = useState("");
-  const [authPassword, setAuthPassword] = useState("");
-  const [authFirstName, setAuthFirstName] = useState("");
-  const [authLastName, setAuthLastName] = useState("");
-  const [authPhone, setAuthPhone] = useState("");
-  const [authShowPass, setAuthShowPass] = useState(false);
-  const [authError, setAuthError] = useState("");
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authTempToken, setAuthTempToken] = useState("");
-  const [authVerifyCode, setAuthVerifyCode] = useState("");
-
   // Queries
-  const { data: content } = useQuery({
-    queryKey: ["site-content-cart"],
-    queryFn: () => fetch("/api/content").then(r => r.json()),
-    staleTime: 300_000,
-  });
-
   const { data: paymentMethods = [] } = useQuery<PaymentMethod[]>({
     queryKey: ["payment-methods-ucart"],
     queryFn: () => fetch("/api/payment-methods", { headers: authHeaders() }).then(r => r.ok ? r.json() : []),
@@ -157,9 +138,6 @@ export default function UnifiedCart() {
     enabled: isLoggedIn,
   });
   const creditBalance = parseFloat(creditsData?.creditBalance ?? "0");
-
-  const logoUrl = content?.logoImage || content?.logoUrl || "";
-  const logoText = content?.logo || "Noehost";
 
   const subtotal = getSubtotal();
   const total = getTotal();
@@ -195,63 +173,6 @@ export default function UnifiedCart() {
     const ext = domainExtensions.find(e => e.extension === long) || domainExtensions.find(e => e.extension === short);
     if (!ext) return 0;
     return domain.toLowerCase().endsWith(".pk") ? Number(ext.register2YearPrice ?? ext.registerPrice ?? 0) : Number(ext.registerPrice ?? 0);
-  }
-
-  // ── Inline Auth ────────────────────────────────────────────────────────────
-  async function handleAuth() {
-    setAuthError("");
-    if (!authEmail.trim() || !authPassword.trim()) { setAuthError("Email and password required."); return; }
-    if (authMode === "register" && !authFirstName.trim()) { setAuthError("First name required."); return; }
-    setAuthLoading(true);
-    try {
-      if (authMode === "register") {
-        const r = await fetch("/api/auth/register", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: authEmail.trim(), password: authPassword, firstName: authFirstName.trim(), lastName: authLastName.trim(), phone: authPhone.trim() }),
-        });
-        const d = await r.json();
-        if (!r.ok) { setAuthError(d.error ?? d.message ?? "Registration failed."); return; }
-        if (d.requiresVerification && d.token) { setAuthTempToken(d.token); setAuthMode("verify"); return; }
-      }
-      const r = await fetch("/api/auth/login", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: authEmail.trim(), password: authPassword }),
-      });
-      const d = await r.json();
-      if (d.requiresVerification && d.tempToken) { setAuthTempToken(d.tempToken); setAuthMode("verify"); return; }
-      if (!r.ok) { setAuthError(d.error ?? d.message ?? "Login failed."); return; }
-      authLogin(d.token);
-      setIsLoggedIn(true);
-      qc.invalidateQueries();
-      setStep("payment");
-      toast({ title: authMode === "register" ? "Account created! Proceeding..." : "Signed in!" });
-    } catch (e: any) { setAuthError(e.message ?? "Network error"); }
-    finally { setAuthLoading(false); }
-  }
-
-  async function handleVerify() {
-    setAuthError("");
-    setAuthLoading(true);
-    try {
-      const vr = await fetch("/api/auth/verify-email", {
-        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${authTempToken}` },
-        body: JSON.stringify({ code: authVerifyCode.trim() }),
-      });
-      const vd = await vr.json();
-      if (!vr.ok) { setAuthError(vd.error || vd.message || "Verification failed."); return; }
-      const r = await fetch("/api/auth/login", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: authEmail.trim(), password: authPassword }),
-      });
-      const d = await r.json();
-      if (!r.ok) { setAuthError(d.error || "Login failed after verify."); return; }
-      authLogin(d.token);
-      setIsLoggedIn(true);
-      qc.invalidateQueries();
-      setStep("payment");
-      toast({ title: "Email verified! Proceeding to payment." });
-    } catch (e: any) { setAuthError(e.message ?? "Error"); }
-    finally { setAuthLoading(false); }
   }
 
   // ── Place Order ── processes ALL cart items, one checkout call per item ────
@@ -360,9 +281,7 @@ export default function UnifiedCart() {
       {/* ── Top bar ─────────────────────────────────────────────────────────── */}
       <div className="border-b border-gray-100 px-4 sm:px-8 py-4 flex items-center justify-between">
         <a href="/" className="flex items-center gap-2">
-          {logoUrl
-            ? <img src={logoUrl} alt={logoText} className="h-8 w-auto object-contain" />
-            : <span className="font-black text-xl text-gray-900">{logoText}</span>}
+          <BrandingLogo size="sm" showText={true} />
         </a>
         <div className="flex items-center gap-4 text-xs text-gray-400">
           <span className="flex items-center gap-1"><ShieldCheck size={12} className="text-emerald-500" /> SSL Secured</span>
@@ -650,61 +569,30 @@ export default function UnifiedCart() {
                             </div>
                           </div>
                         ) : (
-                          <>
-                            {/* Auth mode toggle */}
-                            <div className="flex gap-1 p-1 bg-gray-100 rounded-xl mb-4">
-                              {([["login", "Sign In"], ["register", "Create Account"]] as const).map(([m, label]) => (
-                                <button key={m} onClick={() => { setAuthMode(m); setAuthError(""); }}
-                                  className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all ${authMode === m ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
-                                  {m === "login" ? <User size={14} /> : <UserPlus size={14} />} {label}
-                                </button>
-                              ))}
+                          <div className="space-y-3">
+                            <div className="flex items-start gap-3 p-4 bg-amber-50 rounded-xl border border-amber-200">
+                              <Lock size={18} className="text-amber-500 shrink-0 mt-0.5" />
+                              <div>
+                                <p className="font-semibold text-amber-800 text-sm">Sign in to continue</p>
+                                <p className="text-xs text-amber-700 mt-0.5">Your selections are saved. Sign in to complete your purchase.</p>
+                              </div>
                             </div>
-
-                            {authMode === "verify" ? (
-                              <div className="space-y-3">
-                                <p className="text-sm text-gray-600">Enter the verification code sent to <strong>{authEmail}</strong></p>
-                                <input type="text" value={authVerifyCode} onChange={e => setAuthVerifyCode(e.target.value)} placeholder="6-digit code"
-                                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" />
-                                {authError && <p className="text-xs text-red-500">{authError}</p>}
-                                <button onClick={handleVerify} disabled={authLoading}
-                                  className="w-full h-11 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60 transition-all hover:brightness-110"
-                                  style={{ background: G }}>
-                                  {authLoading ? <Loader2 size={16} className="animate-spin" /> : "Verify & Continue"}
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="space-y-3">
-                                {authMode === "register" && (
-                                  <div className="grid grid-cols-2 gap-3">
-                                    <input type="text" value={authFirstName} onChange={e => setAuthFirstName(e.target.value)} placeholder="First name"
-                                      className="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" />
-                                    <input type="text" value={authLastName} onChange={e => setAuthLastName(e.target.value)} placeholder="Last name"
-                                      className="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" />
-                                  </div>
-                                )}
-                                <input type="email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} placeholder="Email address"
-                                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" />
-                                {authMode === "register" && (
-                                  <input type="tel" value={authPhone} onChange={e => setAuthPhone(e.target.value)} placeholder="Phone (optional)"
-                                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" />
-                                )}
-                                <div className="relative">
-                                  <input type={authShowPass ? "text" : "password"} value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder="Password"
-                                    className="w-full pr-10 px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" />
-                                  <button onClick={() => setAuthShowPass(p => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                                    {authShowPass ? <EyeOff size={15} /> : <Eye size={15} />}
-                                  </button>
-                                </div>
-                                {authError && <p className="text-xs text-red-500 flex items-center gap-1"><AlertCircle size={12} />{authError}</p>}
-                                <button onClick={handleAuth} disabled={authLoading}
-                                  className="w-full h-11 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60 transition-all hover:brightness-110"
-                                  style={{ background: G }}>
-                                  {authLoading ? <Loader2 size={16} className="animate-spin" /> : authMode === "login" ? "Sign In & Continue" : "Create Account & Continue"}
-                                </button>
-                              </div>
-                            )}
-                          </>
+                            <button
+                              onClick={() => setLocation(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`)}
+                              className="w-full h-11 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all hover:brightness-110"
+                              style={{ background: G }}>
+                              <User size={15} /> Sign In
+                            </button>
+                            <button
+                              onClick={() => setLocation(`/register?next=${encodeURIComponent(window.location.pathname + window.location.search)}`)}
+                              className="w-full h-11 rounded-xl border-2 border-gray-200 text-sm font-semibold text-gray-700 flex items-center justify-center gap-2 transition-all hover:bg-gray-50 hover:border-gray-300 active:scale-[0.99]">
+                              <UserPlus size={15} /> Create Account
+                            </button>
+                            <p className="text-center text-[11px] text-gray-400">
+                              <Lock size={9} className="inline mr-1 text-emerald-500" />
+                              Your order details are saved. Sign in will not reset your selections.
+                            </p>
+                          </div>
                         )}
 
                         {isLoggedIn && (

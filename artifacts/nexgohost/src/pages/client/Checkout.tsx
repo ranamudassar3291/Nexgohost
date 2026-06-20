@@ -5,11 +5,10 @@ import {
   ShieldCheck, CheckCircle2, Loader2, AlertCircle, Globe, Tag,
   Gift, Search as SearchIcon, XCircle, Wallet, CreditCard,
   Smartphone, Landmark, Lock, BadgeCheck, ChevronRight, Zap,
-  Check, Mail, Shield, Server, Star,
+  Check, Mail, Shield, Server, Star, User, UserPlus,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/context/CurrencyProvider";
-import { useAuth } from "@/hooks/use-auth";
 import CaptchaWidget from "@/components/CaptchaWidget";
 
 const BRAND = "#6B46C1";
@@ -63,7 +62,6 @@ export default function Checkout() {
   const search = useSearch();
   const { toast } = useToast();
   const { formatPrice, currency } = useCurrency();
-  const { login: authLogin } = useAuth();
   const qc = useQueryClient();
 
   const params = new URLSearchParams(search);
@@ -95,6 +93,11 @@ export default function Checkout() {
 
   const isLoggedIn = !!localStorage.getItem("token") || !!localStorage.getItem("noehost_token");
   const currentCheckoutUrl = window.location.pathname + window.location.search;
+
+  const monthlyPrice = 0;
+  const priceMap: Record<BillingCycle, number | null> = { yearly: yearlyPrice };
+  const availableCycles: BillingCycle[] = ["yearly"];
+  const cycleWasPreselected = true;
 
   const { data: captchaConfig } = useQuery({
     queryKey: ["captcha-config"],
@@ -801,170 +804,29 @@ export default function Checkout() {
               </div>
             </>
           ) : (
-            /* ── Inline auth gate for guests ── */
+            /* ── Guest auth gate — redirect to login/register ── */
             <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
               <div className="px-5 py-4 border-b border-border">
                 <h3 className="font-bold text-foreground flex items-center gap-2">
-                  {authMode === "login" ? <User size={14} className="text-primary" /> : <UserPlus size={14} className="text-primary" />}
-                  {authMode === "login" ? "Sign in to complete your order" : "Create an account to continue"}
+                  <Lock size={14} className="text-primary" /> Sign in to continue
                 </h3>
-                <p className="text-xs text-muted-foreground mt-1">Your plan is ready — just one quick step.</p>
+                <p className="text-xs text-muted-foreground mt-1">Your selections are saved. Sign in to complete your purchase.</p>
               </div>
-
-              {/* Tabs */}
-              <div className="flex border-b border-border">
-                <button
-                  onClick={() => { setAuthMode("login"); setAuthError(""); setAuthTempToken(""); setAuthVerifyCode(""); }}
-                  className={`flex-1 py-2.5 text-sm font-semibold transition-colors ${authMode === "login" ? "text-primary border-b-2 border-primary bg-primary/5" : "text-muted-foreground hover:text-foreground"}`}>
-                  Sign In
-                </button>
-                <button
-                  onClick={() => { setAuthMode("register"); setAuthError(""); setAuthTempToken(""); setAuthVerifyCode(""); }}
-                  className={`flex-1 py-2.5 text-sm font-semibold transition-colors ${authMode === "register" ? "text-primary border-b-2 border-primary bg-primary/5" : "text-muted-foreground hover:text-foreground"}`}>
-                  Create Account
-                </button>
-                {authMode === "verify" && (
-                  <button
-                    onClick={() => { setAuthMode("verify"); setAuthError(""); }}
-                    className="flex-1 py-2.5 text-sm font-semibold text-primary border-b-2 border-primary bg-primary/5"
-                  >
-                    Verify Code
-                  </button>
-                )}
-              </div>
-
               <div className="p-5 space-y-3">
-                {authMode === "verify" && (
-                  <div className="space-y-3">
-                    <div className="rounded-xl border border-primary/15 bg-primary/5 p-4">
-                      <p className="text-sm font-semibold text-foreground">Check your email</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        We sent a verification code to <span className="font-medium text-foreground">{authEmail}</span>.
-                      </p>
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Verification Code *</label>
-                      <input
-                        value={authVerifyCode}
-                        onChange={e => setAuthVerifyCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                        placeholder="000000"
-                        className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-sm font-mono tracking-[0.4em] text-center focus:outline-none focus:border-primary transition-colors"
-                        maxLength={6}
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={handleInlineVerify}
-                        disabled={authLoading || authVerifyCode.length !== 6}
-                        className="flex-1 h-12 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-60 active:scale-[0.99]"
-                        style={{ background: BRAND_GRADIENT, boxShadow: authLoading ? "none" : "0 6px 24px rgba(112,26,254,0.3)" }}
-                      >
-                        {authLoading ? <><Loader2 size={16} className="animate-spin" /> Verifying…</> : <><ShieldCheck size={15} /> Verify & Continue</>}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleInlineResend}
-                        disabled={authResending}
-                        className="px-4 h-12 rounded-xl border border-border text-sm font-semibold text-foreground hover:bg-accent transition-colors disabled:opacity-60"
-                      >
-                        {authResending ? "Resending…" : "Resend"}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {authMode === "register" && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">First Name *</label>
-                      <input
-                        value={authFirstName}
-                        onChange={e => setAuthFirstName(e.target.value)}
-                        placeholder="John"
-                        className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-primary transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block">Last Name</label>
-                      <input
-                        value={authLastName}
-                        onChange={e => setAuthLastName(e.target.value)}
-                        placeholder="Doe"
-                        className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-primary transition-colors"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Email Address *</label>
-                  <input
-                    type="email"
-                    value={authEmail}
-                    onChange={e => setAuthEmail(e.target.value)}
-                    placeholder="you@example.com"
-                    className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-primary transition-colors"
-                  />
-                </div>
-
-                {authMode === "register" && (
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Phone (optional)</label>
-                    <input
-                      type="tel"
-                      value={authPhone}
-                      onChange={e => setAuthPhone(e.target.value)}
-                      placeholder="+1 555 000 0000"
-                      className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-primary transition-colors"
-                    />
-                  </div>
-                )}
-
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Password *</label>
-                  <div className="relative">
-                    <input
-                      type={authShowPass ? "text" : "password"}
-                      value={authPassword}
-                      onChange={e => setAuthPassword(e.target.value)}
-                      onKeyDown={e => e.key === "Enter" && handleInlineAuth()}
-                      placeholder="••••••••"
-                      className="w-full px-3 py-2.5 pr-10 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-primary transition-colors"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setAuthShowPass(v => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                      {authShowPass ? <EyeOff size={15} /> : <Eye size={15} />}
-                    </button>
-                  </div>
-                </div>
-
-                {authError && (
-                  <div className="flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400">
-                    <AlertCircle size={13} className="shrink-0 mt-0.5" /> {authError}
-                  </div>
-                )}
-
                 <button
-                  onClick={authMode === "verify" ? handleInlineVerify : handleInlineAuth}
-                  disabled={authLoading}
-                  className="w-full h-12 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-60 active:scale-[0.99]"
-                  style={{ background: BRAND_GRADIENT, boxShadow: authLoading ? "none" : "0 6px 24px rgba(112,26,254,0.3)" }}>
-                  {authLoading
-                    ? <><Loader2 size={16} className="animate-spin" /> Please wait…</>
-                    : authMode === "verify"
-                      ? <><ShieldCheck size={15} /> Verify & Continue</>
-                      : authMode === "login"
-                      ? <><Lock size={15} /> Sign In & Continue</>
-                      : <><UserPlus size={15} /> Create Account & Continue</>
-                  }
+                  onClick={() => setLocation(`/login?next=${encodeURIComponent(currentCheckoutUrl)}`)}
+                  className="w-full h-12 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.99]"
+                  style={{ background: BRAND_GRADIENT, boxShadow: "0 6px 24px rgba(112,26,254,0.3)" }}>
+                  <User size={15} /> Sign In
                 </button>
-
+                <button
+                  onClick={() => setLocation(`/register?next=${encodeURIComponent(currentCheckoutUrl)}`)}
+                  className="w-full h-12 rounded-xl border-2 border-border text-sm font-semibold text-foreground flex items-center justify-center gap-2 transition-all hover:bg-accent active:scale-[0.99]">
+                  <UserPlus size={15} /> Create Account
+                </button>
                 <p className="text-center text-[11px] text-muted-foreground">
                   <Lock size={9} className="inline mr-1 text-green-500" />
-                  Your order details are saved. Completing {authMode === "login" ? "sign in" : "registration"} will not reset your selections.
+                  Your order details are saved. Sign in will not reset your selections.
                 </p>
               </div>
             </div>

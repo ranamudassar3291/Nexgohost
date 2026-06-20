@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, ArrowRight, Smartphone, MailCheck } from "lucide-react";
+import { useCart } from "@/context/CartContext";
 
 async function apiFetch(url: string, token?: string, opts?: RequestInit) {
   const res = await fetch(url, {
@@ -23,6 +24,7 @@ export default function Login() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { logoUrl, siteName } = useBranding();
+  const { mergeGuestCart } = useCart();
   const nextUrl = new URLSearchParams(window.location.search).get("next") || new URLSearchParams(window.location.search).get("redirect") || "";
 
   const [email, setEmail] = useState("");
@@ -49,6 +51,7 @@ export default function Login() {
         setStep("verify");
       } else {
         login(data.token);
+        await mergeGuestCart();
         toast({ title: "Welcome back!", description: "Successfully logged in." });
         setLocation(nextUrl || (data.user?.role === "admin" ? "/admin/dashboard" : "/dashboard"));
       }
@@ -91,6 +94,7 @@ export default function Login() {
         throw new Error(data.message || data.error || "Invalid code");
       }
       login(data.token);
+      await mergeGuestCart();
       toast({ title: "Welcome back!" });
       setLocation(nextUrl || (data.user?.role === "admin" ? "/admin/dashboard" : "/dashboard"));
     } catch (err: any) {
@@ -105,6 +109,7 @@ export default function Login() {
       const data = await apiFetch("/api/auth/verify-email", tempToken, { method: "POST", body: JSON.stringify({ code: verifyCode }) });
       // verify-email returns a full auth token — use it directly (no need for 2nd login call)
       login(data.token);
+      await mergeGuestCart();
       toast({ title: "Email verified", description: "You are now signed in." });
       setLocation(nextUrl || "/dashboard");
     } catch (err: any) {

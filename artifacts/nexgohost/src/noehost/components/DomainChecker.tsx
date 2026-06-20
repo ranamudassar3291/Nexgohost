@@ -241,6 +241,8 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
     const name = baseName ?? searched;
     const domainFull = `${name}${tld}`;
     const finalPrice = isPkDomain(tld) ? 4000 : price;
+    localStorage.setItem(DOMAIN_ORDER_KEY, domainFull);
+    sessionStorage.setItem('domain_search', domainFull);
     await addItem({
       type: 'domain', planId: `domain-${domainFull}`, name: domainFull,
       billingCycle: isPkDomain(tld) ? 'biennially' : 'yearly',
@@ -256,6 +258,8 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
     const domainFull = `${name}${tld}`;
     const finalPrice = isPkDomain(tld) ? 4000 : price;
     const period = isPkDomain(tld) ? 2 : 1;
+    localStorage.setItem(DOMAIN_ORDER_KEY, domainFull);
+    sessionStorage.setItem('domain_search', domainFull);
     const params = new URLSearchParams({
       domain: domainFull,
       action: 'register',

@@ -14,6 +14,7 @@ import CaptchaWidget from "@/components/CaptchaWidget";
 import { PhoneInput } from "@/components/PhoneInput";
 import { useQuery } from "@tanstack/react-query";
 import { useCurrency } from "@/context/CurrencyProvider";
+import { useCart } from "@/context/CartContext";
 import { COUNTRIES, countryToCurrency, type CountryOption } from "@/lib/countries";
 
 async function apiFetch(url: string, token: string | null, opts?: RequestInit) {
@@ -97,6 +98,7 @@ export default function Register() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { currency, setCurrency, allCurrencies } = useCurrency();
+  const { mergeGuestCart } = useCart();
 
   const [selectedCountry, setSelectedCountry] = useState<CountryOption>(defaultCountry);
   const [detectingIp, setDetectingIp] = useState(true);
@@ -248,7 +250,8 @@ export default function Register() {
     } finally { setResending(false); }
   }
 
-  function redirect() {
+  async function redirect() {
+    await mergeGuestCart();
     const p = new URLSearchParams(window.location.search);
     const next = p.get("next") || p.get("redirect");
     const hasPendingCart = (() => { try { return JSON.parse(localStorage.getItem("noehost_website_cart") || "[]").length > 0; } catch { return false; } })();

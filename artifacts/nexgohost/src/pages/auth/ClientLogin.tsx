@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import CaptchaWidget from "@/components/CaptchaWidget";
 import { useQuery } from "@tanstack/react-query";
+import { useCart } from "@/context/CartContext";
 
 async function apiFetch(url: string, token?: string, opts?: RequestInit) {
   const res = await fetch(url, {
@@ -34,6 +35,7 @@ export default function ClientLogin() {
   const { user, login } = useAuth();
   const { logoUrl, siteName } = useBranding();
   const [, setLocation] = useLocation();
+  const { mergeGuestCart } = useCart();
 
   const [email,       setEmail]       = useState("");
   const [password,    setPassword]    = useState("");
@@ -114,6 +116,7 @@ export default function ClientLogin() {
       if (data.requires2FA) { setTempToken(data.tempToken); setStep("2fa"); }
       else {
         login(data.token);
+        await mergeGuestCart();
         const params = new URLSearchParams(window.location.search);
         const redirectTo = params.get("redirect") || params.get("next");
         const hasPendingCart = (() => { try { return JSON.parse(localStorage.getItem("noehost_website_cart") || "[]").length > 0; } catch { return false; } })();
@@ -152,6 +155,7 @@ export default function ClientLogin() {
         throw new Error(data.message || data.error || "Invalid code. Please try again.");
       }
       login(data.token);
+      await mergeGuestCart();
       const params = new URLSearchParams(window.location.search);
       const r2fa = params.get("redirect") || params.get("next");
       const hasPendingCart2fa = (() => { try { return JSON.parse(localStorage.getItem("noehost_website_cart") || "[]").length > 0; } catch { return false; } })();
@@ -166,6 +170,7 @@ export default function ClientLogin() {
       // verify-email returns a full auth token directly — no 2nd login call needed
       const data = await apiFetch("/api/auth/verify-email", tempToken, { method: "POST", body: JSON.stringify({ code: verifyCode }) });
       login(data.token);
+      await mergeGuestCart();
       const params2 = new URLSearchParams(window.location.search);
       const rVerify = params2.get("redirect") || params2.get("next");
       const hasPendingCartVerify = (() => { try { return JSON.parse(localStorage.getItem("noehost_website_cart") || "[]").length > 0; } catch { return false; } })();
