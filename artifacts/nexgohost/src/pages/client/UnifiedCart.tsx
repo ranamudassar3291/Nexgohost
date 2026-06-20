@@ -149,8 +149,7 @@ export default function UnifiedCart() {
   // Queries
   const { data: paymentMethods = [] } = useQuery<PaymentMethod[]>({
     queryKey: ["payment-methods-ucart"],
-    queryFn: () => fetch("/api/payment-methods", { headers: authHeaders() }).then(r => r.ok ? r.json() : []),
-    enabled: isLoggedIn,
+    queryFn: () => fetch("/api/payment-methods").then(r => r.ok ? r.json() : []),
   });
 
   const { data: captchaConfig } = useQuery({

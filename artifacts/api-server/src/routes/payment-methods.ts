@@ -89,8 +89,8 @@ function publicSettings(type: string, settings: Record<string, unknown>) {
   }
 }
 
-// Public/client: list active payment methods (for checkout page)
-router.get("/payment-methods", authenticate, async (_req, res) => {
+// Public/client: list active payment methods (for checkout page — no auth required for guests)
+router.get("/payment-methods", async (_req, res) => {
   try {
     const methods = await db.select().from(paymentMethodsTable)
       .where(eq(paymentMethodsTable.isActive, true))
