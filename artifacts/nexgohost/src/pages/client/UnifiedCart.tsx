@@ -92,6 +92,20 @@ export default function UnifiedCart() {
 
   useEffect(() => { if (user) setIsLoggedIn(true); }, [user]);
 
+  const [couponInput, setCouponInput] = useState(coupon?.code ?? "");
+  const [referralInput, setReferralInput] = useState(referral?.code ?? "");
+
+  // Domain check state per item
+  const [domainInputs, setDomainInputs] = useState<Record<string, string>>({});
+  const [domainChecking, setDomainChecking] = useState<Record<string, boolean>>({});
+  const [domainAvail, setDomainAvail] = useState<Record<string, "available" | "taken" | null>>({});
+  const domainTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  // Multi-TLD domain search results per item
+  const [domainResults, setDomainResults] = useState<Record<string, any[]>>({});
+  const [domainSelectedTld, setDomainSelectedTld] = useState<Record<string, string>>({});
+  const [domainShowAll, setDomainShowAll] = useState<Record<string, boolean>>({});
+
   // Restore state saved before login redirect
   useEffect(() => {
     const saved = localStorage.getItem("cart_unified_state");
@@ -120,20 +134,6 @@ export default function UnifiedCart() {
       }
     }
   }, [isLoggedIn, step, items, domainInputs, domainSelectedTld]);
-
-  const [couponInput, setCouponInput] = useState(coupon?.code ?? "");
-  const [referralInput, setReferralInput] = useState(referral?.code ?? "");
-
-  // Domain check state per item
-  const [domainInputs, setDomainInputs] = useState<Record<string, string>>({});
-  const [domainChecking, setDomainChecking] = useState<Record<string, boolean>>({});
-  const [domainAvail, setDomainAvail] = useState<Record<string, "available" | "taken" | null>>({});
-  const domainTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-
-  // Multi-TLD domain search results per item
-  const [domainResults, setDomainResults] = useState<Record<string, any[]>>({});
-  const [domainSelectedTld, setDomainSelectedTld] = useState<Record<string, string>>({});
-  const [domainShowAll, setDomainShowAll] = useState<Record<string, boolean>>({});
 
   // VPS OS selector per item
   const VPS_OS = ["Ubuntu 22.04 LTS", "Ubuntu 20.04 LTS", "Debian 12", "CentOS Stream 9", "AlmaLinux 9", "Rocky Linux 9", "Windows Server 2022"];
