@@ -14,6 +14,11 @@ interface TldResult {
   available: boolean;
   registrationPrice: number;
   renewalPrice: number;
+  isFreeWithHosting?: boolean;
+  register2YearPrice?: number | null;
+  register3YearPrice?: number | null;
+  renew2YearPrice?: number | null;
+  renew3YearPrice?: number | null;
 }
 
 interface WhoisData {
@@ -186,6 +191,12 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    // Clear stale domain cache on page load
+    localStorage.removeItem('order_wizard_domain');
+    localStorage.removeItem('noehost_domain_session');
+    localStorage.removeItem('noehost_domain_cart_v1');
+    localStorage.removeItem('noehost_transfer_epps');
+    sessionStorage.removeItem('domain_search');
     fetch('/api/domain-bundles').then(r => r.json()).then(d => setBundleConfig(d)).catch(() => {});
   }, []);
 
@@ -229,7 +240,7 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
       const res = await fetch(`/api/domains/availability?domain=${encodeURIComponent(name)}`);
       const data = await res.json();
       if (!res.ok) setError(data.error || 'Failed to check availability.');
-      else setResults((data.results || []).filter((r: TldResult) => r.registrationPrice > 0));
+      else setResults(data.results || []);
     } catch { setError('Network error. Please try again.'); }
     finally { setSearching(false); }
   };
@@ -281,12 +292,11 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
         .filter((r): r is TldResult => !!r)
         .slice(0, 3)
     : available.filter(r => r.tld !== primaryAvail?.tld).slice(0, 3);
-  // "Other recommended" = only popular TLDs (excluding primary), max 5
+  // "Alternative Domains" = ALL available TLDs (excluding primary), max 8
   const otherDomains = results
-    ? POPULAR_TLDS
-        .map(tld => results.find(r => r.tld === tld))
-        .filter((r): r is TldResult => !!r && r.tld !== primaryAvail?.tld)
-        .slice(0, 5)
+    ? results
+        .filter((r): r is TldResult => r.available && r.tld !== primaryAvail?.tld)
+        .slice(0, 8)
     : [];
 
   const handleBulkSearch = async () => {
@@ -469,7 +479,9 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
                           {/* Domain name */}
                           <div className="flex items-center gap-2 mb-1">
                             {(() => { const sp = getSavePct(primaryAvail.tld, primaryAvail.registrationPrice); return sp > 0 ? <SaleBadge pct={sp} /> : null; })()}
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">.sale</span>
+                            {primaryAvail.isFreeWithHosting && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500 text-white text-[10px] font-black rounded-md uppercase tracking-wide">FREE</span>
+                            )}
                           </div>
                           <div className="text-2xl font-black text-slate-900 mb-1">
                             {searched}<span className="text-purple-600">{primaryAvail.tld}</span>
@@ -477,7 +489,9 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
 
                           {/* Price */}
                           <div className="mb-1">
-                            {(() => {
+                            {primaryAvail.isFreeWithHosting ? (
+                              <span className="text-2xl font-black text-emerald-600">FREE</span>
+                            ) : (() => {
                               const p = getPriceDisplay(primaryAvail.tld, primaryAvail.registrationPrice);
                               return (
                                 <>
@@ -488,17 +502,19 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
                             })()}
                           </div>
                           <p className="text-xs text-slate-400 font-medium mb-4">
-                            {isPkDomain(primaryAvail.tld)
-                              ? '2-year registration · Renewal at same price'
-                              : `for 1 year · Renewal at ${convertFromPKR(primaryAvail.renewalPrice ?? primaryAvail.registrationPrice)}/yr`
+                            {primaryAvail.isFreeWithHosting
+                              ? 'Free with any hosting plan'
+                              : isPkDomain(primaryAvail.tld)
+                                ? '2-year registration · Renewal at same price'
+                                : `for 1 year · Renewal at ${convertFromPKR(primaryAvail.renewalPrice ?? primaryAvail.registrationPrice)}/yr`
                             }
                           </p>
 
                           <button
-                            onClick={() => handleRegisterNow(primaryAvail.tld, primaryAvail.registrationPrice)}
+                            onClick={() => handleRegisterNow(primaryAvail.tld, primaryAvail.isFreeWithHosting ? 0 : primaryAvail.registrationPrice)}
                             className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-black text-sm bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-600/20 transition-all"
                           >
-                            <Globe size={15} /> Register Now →
+                            <Globe size={15} /> {primaryAvail.isFreeWithHosting ? 'Claim Free Domain →' : 'Register Now →'}
                           </button>
 
                           <p className="mt-3 text-[11px] text-slate-400 font-medium leading-snug">
@@ -520,13 +536,21 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
                                 const p = getPriceDisplay(bundleAlts[0].tld, bundleAlts[0].registrationPrice);
                                 return (
                                   <div className="mb-1">
-                                    <span className="text-xl font-black text-slate-800">{p.label}</span>
-                                    <span className="text-slate-500 font-semibold text-sm">{p.period}</span>
+                                    {bundleAlts[0].isFreeWithHosting ? (
+                                      <span className="text-xl font-black text-emerald-600">FREE</span>
+                                    ) : (
+                                      <>
+                                        <span className="text-xl font-black text-slate-800">{p.label}</span>
+                                        <span className="text-slate-500 font-semibold text-sm">{p.period}</span>
+                                      </>
+                                    )}
                                   </div>
                                 );
                               })()}
                               <p className="text-xs text-slate-400 font-medium mb-4">
-                                {isPkDomain(bundleAlts[0]?.tld ?? '') ? '2-year registration' : 'for 1 year'}
+                                {bundleAlts[0]?.isFreeWithHosting
+                                  ? 'Free with any hosting plan'
+                                  : isPkDomain(bundleAlts[0]?.tld ?? '') ? '2-year registration' : 'for 1 year'}
                               </p>
 
                               <button
@@ -569,7 +593,7 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
                   {otherDomains.length > 0 && (
                     <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
                       <div className="px-6 py-4 border-b border-slate-100">
-                        <h3 className={`text-base font-black ${variant === 'hero' ? 'text-slate-800' : 'text-slate-800'}`}>Other recommended domains</h3>
+                        <h3 className={`text-base font-black ${variant === 'hero' ? 'text-slate-800' : 'text-slate-800'}`}>Alternative Domains</h3>
                       </div>
                       <div className="divide-y divide-slate-100">
                         {otherDomains.map((r, i) => {
@@ -582,20 +606,29 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
                               <div className="flex items-center gap-3 min-w-0 flex-1">
                                 <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${r.available ? 'bg-green-400' : 'bg-red-400'}`} />
                                 <span className="text-sm font-black text-slate-800">{searched}<span className={r.available ? 'text-purple-600' : 'text-slate-400'}>{r.tld}</span></span>
+                                {r.isFreeWithHosting && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 bg-emerald-500 text-white text-[9px] font-black rounded uppercase tracking-wide">FREE</span>
+                                )}
                               </div>
 
                               {/* Middle: price */}
                               <div className="text-right flex-shrink-0 min-w-[110px]">
                                 {r.available ? (
                                   <>
-                                    {sp > 0 && <div className="mb-0.5"><SaleBadge pct={sp} /></div>}
-                                    <div className="font-black text-slate-800 text-sm leading-tight">
-                                      {p.label}<span className="text-slate-400 font-medium text-xs">{p.period}</span>
-                                    </div>
-                                    {!isPkDomain(r.tld) && (
-                                      <div className="text-[10px] text-slate-400 font-medium">
-                                        Introductory Offer ⓘ
-                                      </div>
+                                    {r.isFreeWithHosting ? (
+                                      <div className="font-black text-emerald-600 text-sm leading-tight">FREE</div>
+                                    ) : (
+                                      <>
+                                        {sp > 0 && <div className="mb-0.5"><SaleBadge pct={sp} /></div>}
+                                        <div className="font-black text-slate-800 text-sm leading-tight">
+                                          {p.label}<span className="text-slate-400 font-medium text-xs">{p.period}</span>
+                                        </div>
+                                        {!isPkDomain(r.tld) && (
+                                          <div className="text-[10px] text-slate-400 font-medium">
+                                            Introductory Offer ⓘ
+                                          </div>
+                                        )}
+                                      </>
                                     )}
                                   </>
                                 ) : (
@@ -606,8 +639,8 @@ const DomainChecker: React.FC<DomainCheckerProps> = ({
                               {/* Right: action button */}
                               <div className="flex-shrink-0">
                                 {r.available ? (
-                                  <button onClick={() => handleRegisterNow(r.tld, r.registrationPrice)} className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-black text-xs transition-all whitespace-nowrap bg-purple-600 hover:bg-purple-700 text-white shadow-sm">
-                                    <Globe size={12} />Register
+                                  <button onClick={() => handleRegisterNow(r.tld, r.isFreeWithHosting ? 0 : r.registrationPrice)} className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-black text-xs transition-all whitespace-nowrap bg-purple-600 hover:bg-purple-700 text-white shadow-sm">
+                                    <Globe size={12} />{r.isFreeWithHosting ? 'Claim' : 'Register'}
                                   </button>
                                 ) : (
                                   <div className="flex gap-1.5">
