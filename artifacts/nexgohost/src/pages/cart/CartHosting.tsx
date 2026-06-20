@@ -482,68 +482,68 @@ export default function CartHosting() {
                             <p className="text-[13px] text-gray-400 text-center py-4">No results found. Try a different name.</p>
                           )}
                           {domainResults.map(r => {
-                            const isFree = cycleFree && (planFreeTlds.includes(r.tld) || r.isFreeWithHosting);
-                            const isSelected = domainSelectedTld === r.tld?.toLowerCase();
+                            const tldNorm = r.tld?.toLowerCase() || "";
+                            const isFree = cycleFree && (planFreeTlds.map(t => t.toLowerCase()).includes(tldNorm) || r.isFreeWithHosting);
+                            const isSelected = domainSelectedTld?.toLowerCase() === tldNorm;
+                            const isTaken = !r.available;
+                            const regPrice = Number(r.registerPrice || r.price || 0);
+                            const renPrice = Number(r.renewalPrice || 0);
+                            const isPk = tldNorm.endsWith(".pk");
+                            const fullName = `${baseName}${r.tld}`;
                             return (
                               <div key={r.tld}
-                                className={`flex items-center gap-3 justify-between px-4 py-3 bg-white rounded-xl border transition-all ${
-                                  r.available ? "border-gray-200 hover:border-[#6B46C1]/30" : "opacity-60 border-gray-100"
+                                onClick={() => {
+                                  if (isTaken) return;
+                                  setDomainSelectedTld(r.tld.toLowerCase());
+                                  setDomainPrice(isFree ? 0 : regPrice);
+                                }}
+                                className={`flex items-center gap-3 justify-between px-4 py-3 rounded-xl border transition-all cursor-pointer ${
+                                  isSelected ? "border-[#6B46C1] bg-[#FAF5FF]" : r.available ? "border-gray-200 hover:border-[#6B46C1]/30" : "opacity-60 border-gray-100"
                                 }`}>
-                                <div className="flex items-center gap-0.5 flex-1 min-w-0">
-                                  <span className="text-[14px] font-bold text-gray-900">{baseName}</span>
-                                  <span className="text-[14px] font-bold" style={{ color: isFree ? "#16a34a" : BRAND }}>{r.tld}</span>
-                                  {isFree && (
-                                    <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">✓ Free</span>
-                                  )}
-                                  {!isFree && cycleFree && (
-                                    <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">Regular Price</span>
+                                <div className="flex items-center gap-1 flex-1 min-w-0">
+                                  <span className="text-[14px] font-bold text-gray-900">{fullName}</span>
+                                  {isFree && !isTaken && (
+                                    <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">FREE</span>
                                   )}
                                 </div>
                                 <div className="shrink-0">
                                   {r.available
-                                    ? <span className="flex items-center gap-1 text-[11px] font-bold text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full"><Check size={10} strokeWidth={2.5}/> Available</span>
-                                    : <span className="text-[11px] font-bold text-red-400 bg-red-50 border border-red-100 px-2 py-0.5 rounded-full">Taken</span>}
+                                    ? <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full"><Check size={10} strokeWidth={2.5}/> Available</span>
+                                    : <span className="text-[11px] font-bold text-red-500 bg-red-50 border border-red-100 px-2 py-0.5 rounded-full">Taken</span>}
                                 </div>
                                 <div className="flex items-center gap-2.5 shrink-0">
                                   <div className="text-right">
-                                    {isFree
+                                    {isFree && !isTaken
                                       ? <>
-                                          <p className="text-[11px] text-gray-400 line-through">{formatPrice(Number(r.registerPrice))}</p>
-                                          <p className="text-[13px] font-extrabold text-green-600">FREE</p>
-                                          <p className="text-[10px] text-gray-400">Renews {formatPrice(Number(r.renewalPrice || 0))}/yr</p>
+                                          <p className="text-[11px] text-gray-400 line-through">{formatPrice(regPrice)}</p>
+                                          <p className="text-[13px] font-extrabold text-emerald-600">FREE</p>
+                                          <p className="text-[10px] text-gray-400">{renPrice > 0 ? `Renews ${formatPrice(renPrice)}/yr` : "Renews at regular price"}</p>
                                         </>
                                       : <>
-                                          <p className="text-[13px] font-extrabold">{formatPrice(Number(r.registerPrice || r.price || 0))}/yr</p>
-                                          <p className="text-[10px] text-gray-400">{Number(r.renewalPrice) > 0
-                                            ? `Renews ${formatPrice(Number(r.renewalPrice))}/yr`
-                                            : r.tld === ".pk" ? "2-year renewal"
+                                          <p className="text-[13px] font-extrabold">{regPrice > 0 ? formatPrice(regPrice) : "Free"}</p>
+                                          <p className="text-[10px] text-gray-400">{renPrice > 0
+                                            ? `Renews ${formatPrice(renPrice)}/yr`
+                                            : isPk ? "2-year renewal"
                                             : "Renews at regular price"}
                                           </p>
                                         </>}
                                   </div>
                                   {r.available
                                     ? (
-                                      <button
-                                        onClick={() => {
-                                          setDomainSelectedTld(r.tld.toLowerCase());
-                                          setDomainPrice(isFree ? 0 : Number(r.registerPrice || r.price || 0));
-                                        }}
-                                        className={`px-3.5 py-1.5 text-[12px] font-bold rounded-xl flex items-center gap-1 hover:opacity-90 ${isSelected ? "text-white" : "text-white"}`}
-                                        style={{ background: isFree ? "#16a34a" : isSelected ? BRAND : "#f3f4f6", color: isSelected ? "#fff" : isFree ? "#fff" : "#6b7280" }}>
-                                        {isFree ? <Gift size={11}/> : <Check size={11}/>}
-                                        {isFree ? "Claim Free" : isSelected ? "Selected" : "Select"}
-                                      </button>
+                                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${isSelected ? "border-[#6B46C1] bg-[#6B46C1]" : "border-gray-300"}`}>
+                                        {isSelected && <Check size={12} className="text-white" />}
+                                      </div>
                                     )
                                     : (
                                       <div className="flex items-center gap-1.5">
                                         <button
-                                          onClick={() => window.open(`https://whois.domaintools.com/${r.domain}`, "_blank", "noopener")}
-                                          className="px-3 py-1.5 text-[11px] font-bold rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 flex items-center gap-1">
+                                          onClick={(e) => { e.stopPropagation(); window.open(`https://whois.domaintools.com/${fullName}`, "_blank", "noopener"); }}
+                                          className="px-3 py-1.5 text-[11px] font-bold rounded-xl border border-gray-200 text-blue-600 hover:bg-blue-50 flex items-center gap-1">
                                           <Info size={10}/> WHOIS
                                         </button>
                                         <button
-                                          onClick={() => { setDomainMode("existing"); setDomainInput(r.domain); }}
-                                          className="px-3 py-1.5 text-[11px] font-bold rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 flex items-center gap-1">
+                                          onClick={(e) => { e.stopPropagation(); setDomainMode("existing"); setDomainInput(fullName); }}
+                                          className="px-3 py-1.5 text-[11px] font-bold rounded-xl border border-gray-200 text-amber-600 hover:bg-amber-50 flex items-center gap-1">
                                           <ArrowRightLeft size={10}/> Transfer
                                         </button>
                                       </div>

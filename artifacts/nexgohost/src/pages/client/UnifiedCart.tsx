@@ -7,7 +7,7 @@ import {
   Tag, Gift, Globe, Server, Zap, Mail, Package, Lock, CheckCircle2,
   User, UserPlus, Loader2, AlertCircle, CreditCard,
   Smartphone, Landmark, Shield, BadgeCheck, Search, X, Check,
-  ArrowLeft, Ticket,
+  ArrowLeft, Ticket, ArrowRightLeft, Info,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/context/CurrencyProvider";
@@ -101,6 +101,11 @@ export default function UnifiedCart() {
   const [domainAvail, setDomainAvail] = useState<Record<string, "available" | "taken" | null>>({});
   const domainTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
+  // Multi-TLD domain search results per item
+  const [domainResults, setDomainResults] = useState<Record<string, any[]>>({});
+  const [domainSelectedTld, setDomainSelectedTld] = useState<Record<string, string>>({});
+  const [domainShowAll, setDomainShowAll] = useState<Record<string, boolean>>({});
+
   // VPS OS selector per item
   const VPS_OS = ["Ubuntu 22.04 LTS", "Ubuntu 20.04 LTS", "Debian 12", "CentOS Stream 9", "AlmaLinux 9", "Rocky Linux 9", "Windows Server 2022"];
   const [vpsOs, setVpsOs] = useState<Record<string, string>>({});
@@ -143,7 +148,7 @@ export default function UnifiedCart() {
   const total = getTotal();
   const couponDiscount = coupon?.discountAmount ?? 0;
 
-  // ── Domain check helper ────────────────────────────────────────────────────
+  // ── Domain check helper ── multi-TLD search ─────────────────────────────────
   function checkDomain(pkgId: string, domain: string) {
     const d = domain.trim().toLowerCase();
     if (!d || !d.includes(".")) { setDomainAvail(p => ({ ...p, [pkgId]: null })); return; }
@@ -151,14 +156,23 @@ export default function UnifiedCart() {
     domainTimers.current[pkgId] = setTimeout(async () => {
       setDomainChecking(p => ({ ...p, [pkgId]: true }));
       setDomainAvail(p => ({ ...p, [pkgId]: null }));
+      setDomainResults(p => ({ ...p, [pkgId]: [] }));
       try {
-        const parts = d.split(".");
-        const r = await fetch(`/api/domains/availability?domain=${encodeURIComponent(parts[0])}`);
+        const r = await fetch(`/api/domain/search?q=${encodeURIComponent(d)}`);
         const data = await r.json();
-        if (Array.isArray(data?.results)) {
-          const tld = "." + parts.slice(1).join(".");
-          const match = data.results.find((x: any) => x.tld === tld) || data.results[0];
-          if (match) setDomainAvail(p => ({ ...p, [pkgId]: match.available ? "available" : "taken" }));
+        if (Array.isArray(data)) {
+          const all = data.filter((x: any) => {
+            const p = parseFloat(x.price || x.registerPrice || "0");
+            return p >= 0;
+          });
+          setDomainResults(p => ({ ...p, [pkgId]: all }));
+          const anyMatch = all.find((x: any) => x.available) || all[0];
+          if (anyMatch) {
+            setDomainAvail(p => ({ ...p, [pkgId]: anyMatch.available ? "available" : "taken" }));
+            if (anyMatch.available) {
+              setDomainSelectedTld(p => ({ ...p, [pkgId]: anyMatch.tld }));
+            }
+          }
         }
       } catch {}
       finally { setDomainChecking(p => ({ ...p, [pkgId]: false })); }
@@ -464,7 +478,7 @@ export default function UnifiedCart() {
                                   </div>
                                 )}
                                 {item.domainAction === "register" && (
-                                  <div>
+                                  <div className="space-y-3">
                                     <div className="relative">
                                       <Globe size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                       <input type="text" value={domainInput}
@@ -472,25 +486,108 @@ export default function UnifiedCart() {
                                           const v = e.target.value;
                                           setDomainInputs(p => ({ ...p, [item.packageId]: v }));
                                           checkDomain(item.packageId, v);
-                                          updateDomain(item.packageId, v, "register", getDomainPrice(v, item.freeDomainTlds));
                                         }}
-                                        placeholder="example.com"
-                                        className="w-full pl-8 pr-10 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" />
-                                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                                        {checking ? <Loader2 size={14} className="animate-spin text-gray-400" />
-                                          : avail === "available" ? <CheckCircle2 size={14} className="text-emerald-500" />
-                                          : avail === "taken" ? <X size={14} className="text-red-500" /> : null}
+                                        placeholder="Search your domain (e.g. mysite.com)"
+                                        className="w-full pl-8 pr-24 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary" />
+                                      <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                                        <button onClick={() => checkDomain(item.packageId, domainInput)}
+                                          disabled={checking}
+                                          className="px-3 py-1 text-xs font-bold text-white rounded-md transition-all hover:brightness-110 disabled:opacity-50"
+                                          style={{ background: G }}>
+                                          {checking ? <Loader2 size={12} className="animate-spin" /> : <><Search size={12} className="inline mr-1" />Search</>}
+                                        </button>
                                       </div>
                                     </div>
-                                    {avail === "available" && (
-                                      <p className="text-xs text-emerald-600 font-medium mt-1.5 flex items-center gap-1">
-                                        <CheckCircle2 size={11} /> Available!
-                                        {freeDomainEligible
-                                          ? <span className="ml-1 font-bold">FREE (yearly plan)</span>
-                                          : getDomainPrice(domainInput, item.freeDomainTlds) > 0 && <span className="ml-1 text-gray-500">+ {formatPrice(getDomainPrice(domainInput, item.freeDomainTlds))}</span>}
-                                      </p>
+
+                                    {/* Multi-TLD search results */}
+                                    {domainResults[item.packageId]?.length > 0 && (
+                                      <div className="space-y-2">
+                                        {(domainShowAll[item.packageId]
+                                          ? domainResults[item.packageId]
+                                          : domainResults[item.packageId].slice(0, 4)
+                                        ).map((r: any) => {
+                                          const sld = domainInput.trim().split(".")[0].toLowerCase();
+                                          const fullName = `${sld}${r.tld}`;
+                                          const isSelected = domainSelectedTld[item.packageId] === r.tld;
+                                          const isFree = freeDomainEligible && r.isFreeWithHosting;
+                                          const isTaken = !r.available;
+                                          const regPrice = parseFloat(r.price || r.registerPrice || "0");
+                                          const renPrice = parseFloat(r.renewalPrice || "0");
+                                          const isPk = r.tld?.toLowerCase().includes(".pk");
+
+                                          return (
+                                            <div key={r.tld}
+                                              onClick={() => {
+                                                if (isTaken) return;
+                                                setDomainSelectedTld(p => ({ ...p, [item.packageId]: r.tld }));
+                                                const fullDomain = `${sld}${r.tld}`;
+                                                const price = isFree ? 0 : regPrice;
+                                                updateDomain(item.packageId, fullDomain, "register", price);
+                                              }}
+                                              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border text-sm cursor-pointer transition-all ${
+                                                isSelected
+                                                  ? "border-primary bg-primary/5"
+                                                  : "border-gray-200 hover:border-gray-300"
+                                              } ${isTaken ? "opacity-60" : ""}`}>
+                                              <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                  <span className="font-semibold text-gray-900 truncate">{fullName}</span>
+                                                  {isTaken && <span className="text-[10px] font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded">TAKEN</span>}
+                                                  {isSelected && !isTaken && <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">SELECTED</span>}
+                                                </div>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                  {isFree && !isTaken ? (
+                                                    <span className="text-xs font-bold text-emerald-600">FREE</span>
+                                                  ) : (
+                                                    <span className="text-xs text-gray-600">
+                                                      {regPrice > 0 ? formatPrice(regPrice) : "Price on request"}
+                                                    </span>
+                                                  )}
+                                                  <span className="text-xs text-gray-400">
+                                                    {isPk
+                                                      ? "2-year registration"
+                                                      : renPrice > 0
+                                                        ? `Renews at ${formatPrice(renPrice)}/year`
+                                                        : "Renews at regular price"
+                                                    }
+                                                  </span>
+                                                </div>
+                                              </div>
+                                              <div className="flex items-center gap-1.5 shrink-0">
+                                                {isTaken ? (
+                                                  <>
+                                                    <button onClick={e => { e.stopPropagation(); window.open(`https://whois.domaintools.com/${fullName}`, "_blank"); }}
+                                                      className="px-2 py-1 text-[10px] font-bold text-blue-600 bg-blue-50 rounded hover:bg-blue-100">
+                                                      WHOIS
+                                                    </button>
+                                                    <button onClick={e => {
+                                                      e.stopPropagation();
+                                                      setDomainInputs(p => ({ ...p, [item.packageId]: fullName }));
+                                                      updateDomain(item.packageId, fullName, "transfer", 0);
+                                                    }}
+                                                      className="px-2 py-1 text-[10px] font-bold text-amber-600 bg-amber-50 rounded hover:bg-amber-100 flex items-center gap-1">
+                                                      <ArrowRightLeft size={9} /> Transfer
+                                                    </button>
+                                                  </>
+                                                ) : (
+                                                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                                                    isSelected ? "border-primary bg-primary" : "border-gray-300"
+                                                  }`}>
+                                                    {isSelected && <Check size={12} className="text-white" />}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                        {domainResults[item.packageId].length > 4 && (
+                                          <button onClick={() => setDomainShowAll(p => ({ ...p, [item.packageId]: !p[item.packageId] }))}
+                                            className="w-full text-xs font-semibold text-primary py-1 hover:underline">
+                                            {domainShowAll[item.packageId] ? "Show less" : `Show ${domainResults[item.packageId].length - 4} more`}
+                                          </button>
+                                        )}
+                                      </div>
                                     )}
-                                    {avail === "taken" && <p className="text-xs text-red-500 mt-1.5">This domain is taken. Try another.</p>}
                                   </div>
                                 )}
                               </div>
