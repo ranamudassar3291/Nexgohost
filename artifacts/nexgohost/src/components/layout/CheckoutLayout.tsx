@@ -11,6 +11,7 @@ import { ReactNode } from "react";
 import { Link, Redirect, useLocation } from "wouter";
 import { Lock, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { BrandingLogo } from "@/components/BrandingLogo";
 
 interface Props { children: ReactNode; allowGuest?: boolean; }
 
@@ -26,7 +27,7 @@ export function CheckoutLayout({ children, allowGuest = false }: Props) {
     );
   }
 
-  if (!user && !allowGuest) return <Redirect to="/login"/>;
+  if (!user && !allowGuest) return <Redirect to={`/login?next=${encodeURIComponent(currentPath + window.location.search)}`}/>;
 
   return (
     <div className="min-h-screen bg-[#F8F9FB]" style={{ fontFamily: "'Inter', 'Public Sans', sans-serif" }}>
@@ -35,11 +36,7 @@ export function CheckoutLayout({ children, allowGuest = false }: Props) {
         <div className="max-w-6xl mx-auto px-4 sm:px-8 h-14 flex items-center justify-between">
           {/* Logo */}
           <Link href={user ? "/dashboard" : "/"} className="flex items-center gap-2.5 no-underline">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center font-extrabold text-white text-[15px] shadow-lg"
-              style={{ background: "linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%)" }}>
-              N
-            </div>
-            <span className="text-[17px] font-extrabold text-gray-900 tracking-tight">Noehost</span>
+            <BrandingLogo size="sm" showText={true} />
           </Link>
 
           {/* Trust signals + optional Sign In link for guests */}

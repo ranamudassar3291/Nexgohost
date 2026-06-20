@@ -5,7 +5,7 @@ import {
   ShieldCheck, CheckCircle2, Loader2, AlertCircle, Globe, Tag,
   Gift, Search as SearchIcon, XCircle, Wallet, CreditCard,
   Smartphone, Landmark, Lock, BadgeCheck, ChevronRight, Zap,
-  Check, Mail, Shield, Server, Star, Eye, EyeOff, User, UserPlus,
+  Check, Mail, Shield, Server, Star,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/context/CurrencyProvider";
@@ -93,133 +93,8 @@ export default function Checkout() {
 
   const [addons, setAddons] = useState<Record<string, boolean>>({ privacy: false, email: false, ssl: false });
 
-  // ── Guest auth state ─────────────────────────────────────────────────────
-  const [isLoggedIn,    setIsLoggedIn]    = useState(!!localStorage.getItem("token") || localStorage.getItem("noehost_token") || "");
-  const [authMode,      setAuthMode]      = useState<"login" | "register" | "verify">("login");
-  const [authEmail,     setAuthEmail]     = useState("");
-  const [authPassword,  setAuthPassword]  = useState("");
-  const [authFirstName, setAuthFirstName] = useState("");
-  const [authLastName,  setAuthLastName]  = useState("");
-  const [authPhone,     setAuthPhone]     = useState("");
-  const [authShowPass,  setAuthShowPass]  = useState(false);
-  const [authError,     setAuthError]     = useState("");
-  const [authLoading,   setAuthLoading]   = useState(false);
-  const [authTempToken, setAuthTempToken] = useState("");
-  const [authVerifyCode, setAuthVerifyCode] = useState("");
-  const [authResending, setAuthResending] = useState(false);
-
-  async function handleInlineAuth() {
-    setAuthError("");
-    if (!authEmail.trim() || !authPassword.trim()) {
-      setAuthError("Email and password are required.");
-      return;
-    }
-    if (authMode === "register" && !authFirstName.trim()) {
-      setAuthError("First name is required.");
-      return;
-    }
-    setAuthLoading(true);
-    try {
-      if (authMode === "register") {
-        const regRes = await fetch("/api/auth/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: authEmail.trim(),
-            password: authPassword,
-            firstName: authFirstName.trim(),
-            lastName: authLastName.trim(),
-            phone: authPhone.trim(),
-          }),
-        });
-        const regData = await regRes.json();
-        if (!regRes.ok) { setAuthError(regData.error ?? regData.message ?? "Registration failed."); return; }
-        if (regData.requiresVerification && regData.token) {
-          setAuthTempToken(regData.token);
-          setAuthMode("verify");
-          toast({ title: "Check your email", description: "Enter the verification code to continue." });
-          return;
-        }
-      }
-      const loginRes = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: authEmail.trim(), password: authPassword }),
-      });
-      const loginData = await loginRes.json();
-      if (loginData.requiresVerification && loginData.tempToken) {
-        setAuthTempToken(loginData.tempToken);
-        setAuthMode("verify");
-        toast({ title: "Email verification required", description: "Enter the code sent to your email." });
-        return;
-      }
-      if (!loginRes.ok) { setAuthError(loginData.error ?? loginData.message ?? "Login failed."); return; }
-      authLogin(loginData.token);
-      setIsLoggedIn(true);
-      qc.invalidateQueries();
-      toast({ title: authMode === "register" ? "Account created! Welcome." : "Signed in successfully." });
-    } catch (e: any) {
-      setAuthError(e.message ?? "Network error. Please try again.");
-    } finally {
-      setAuthLoading(false);
-    }
-  }
-
-  async function handleInlineVerify() {
-    setAuthError("");
-    if (!authVerifyCode.trim()) {
-      setAuthError("Verification code is required.");
-      return;
-    }
-    setAuthLoading(true);
-    try {
-      await fetch("/api/auth/verify-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authTempToken}` },
-        body: JSON.stringify({ code: authVerifyCode.trim() }),
-      }).then(async r => {
-        const d = await r.json();
-        if (!r.ok) throw new Error(d.error || d.message || "Verification failed.");
-        return d;
-      });
-      const loginRes = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: authEmail.trim(), password: authPassword }),
-      });
-      const loginData = await loginRes.json();
-      if (!loginRes.ok) { setAuthError(loginData.error ?? loginData.message ?? "Login failed."); return; }
-      authLogin(loginData.token);
-      setIsLoggedIn(true);
-      qc.invalidateQueries();
-      setAuthMode("login");
-      setAuthTempToken("");
-      setAuthVerifyCode("");
-      toast({ title: "Email verified!", description: "Your account is now active." });
-    } catch (e: any) {
-      setAuthError(e.message ?? "Verification failed.");
-    } finally {
-      setAuthLoading(false);
-    }
-  }
-
-  async function handleInlineResend() {
-    setAuthResending(true);
-    setAuthError("");
-    try {
-      const res = await fetch("/api/auth/resend-verification", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authTempToken}` },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || data.message || "Could not resend code.");
-      toast({ title: "Code resent", description: "Please check your inbox." });
-    } catch (e: any) {
-      setAuthError(e.message ?? "Could not resend code.");
-    } finally {
-      setAuthResending(false);
-    }
-  }
+  const isLoggedIn = !!localStorage.getItem("token") || !!localStorage.getItem("noehost_token");
+  const currentCheckoutUrl = window.location.pathname + window.location.search;
 
   const { data: captchaConfig } = useQuery({
     queryKey: ["captcha-config"],
