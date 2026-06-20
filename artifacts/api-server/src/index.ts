@@ -1,5 +1,6 @@
 import path from "path";
 import { existsSync } from "fs";
+import { fileURLToPath } from "url";
 import express from "express";
 import app from "./app";
 import { decryptField } from "./lib/fieldCrypto.js";
@@ -14,7 +15,11 @@ import { getSystemApiKey } from "./lib/systemApiKey.js";
 import { twentyiFindWorkingKeyFormat, setCachedKeyFormat, sanitiseKey } from "./lib/twenty-i.js";
 import { db } from "@workspace/db";
 import { serversTable } from "@workspace/db/schema";
+
 import { and, eq, desc, sql } from "drizzle-orm";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 async function runStartupMigrations() {
   try {

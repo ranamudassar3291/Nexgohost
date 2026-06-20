@@ -55,6 +55,20 @@ function ensureSessionDir() {
   if (!existsSync(SESSION_DIR)) mkdirSync(SESSION_DIR, { recursive: true });
 }
 
+// ── Baileys availability check ────────────────────────────────────────────────
+let _baileysAvailable: boolean | null = null;
+async function isBaileysAvailable(): Promise<boolean> {
+  if (_baileysAvailable !== null) return _baileysAvailable;
+  try {
+    await import("@whiskeysockets/baileys");
+    _baileysAvailable = true;
+  } catch {
+    _baileysAvailable = false;
+    console.warn("[WA] @whiskeysockets/baileys not available — WhatsApp features disabled");
+  }
+  return _baileysAvailable;
+}
+
 // ── Pure DB-based auth state (no disk dependency) ────────────────────────────
 // Replaces useMultiFileAuthState — reads/writes creds + signal keys directly
 // from PostgreSQL. Works across container restarts and ephemeral environments.
@@ -455,6 +469,11 @@ export async function connectWhatsApp() {
   }
 
   ensureSessionDir();
+  if (!await isBaileysAvailable()) {
+    state = { ...state, status: "error", error: "WhatsApp package not available in this environment" };
+    return;
+  }
+
   state = { ...state, status: "connecting", qrDataUrl: null, qrRaw: null, error: null };
   console.log("[WA] Initializing connection…");
 
