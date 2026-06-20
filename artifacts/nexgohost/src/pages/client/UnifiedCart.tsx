@@ -108,17 +108,18 @@ export default function UnifiedCart() {
 
   // Auto-advance to payment when logged in and domain already selected
   useEffect(() => {
-    if (isLoggedIn && hasDomainStep && step === "domain") {
+    const hasDomain = items.some(i => ["hosting", "vps", "email"].includes(i.productType));
+    if (isLoggedIn && hasDomain && step === "domain") {
       const hostingItems = items.filter(i => i.productType === "hosting");
       const allDomainsSelected = hostingItems.every(item => {
-        const domainInput = domainInputs[item.packageId] ?? item.domainName ?? "";
-        return domainInput.trim().length > 0 && domainSelectedTld[item.packageId];
+        const input = domainInputs[item.packageId] ?? item.domainName ?? "";
+        return input.trim().length > 0 && domainSelectedTld[item.packageId];
       });
       if (allDomainsSelected) {
         setStep("payment");
       }
     }
-  }, [isLoggedIn, step, hasDomainStep, items, domainInputs, domainSelectedTld]);
+  }, [isLoggedIn, step, items, domainInputs, domainSelectedTld]);
 
   const [couponInput, setCouponInput] = useState(coupon?.code ?? "");
   const [referralInput, setReferralInput] = useState(referral?.code ?? "");
