@@ -17,7 +17,7 @@ import {
   AlertCircle, CheckCircle2, Key, Shield, Zap, Users, ChevronRight, MailCheck,
   CreditCard, Tag, Wallet, Landmark, Bitcoin, Smartphone, Gift,
   ChevronUp, ChevronDown, RefreshCw, Cpu, MemoryStick, HardDrive, Wifi, MonitorCog,
-  Eye, EyeOff, Shuffle, Terminal, User as UserIcon, UserPlus,
+  Eye, EyeOff, Shuffle, Terminal, User as UserIcon, UserPlus, Info,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
@@ -2705,7 +2705,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
                 <button type="submit" disabled={domChecking || !domainQ.trim()}
                   className="w-full sm:w-auto px-5 py-3 text-white rounded-xl text-[13px] font-bold flex items-center justify-center gap-1.5 disabled:opacity-60"
                   style={{ background: freeDomainClaimed ? "#16a34a" : P }}>
-                  {domChecking ? <Loader2 size={14} className="animate-spin"/> : <Search size={14}/>} Check
+                  {domChecking ? <Loader2 size={14} className="animate-spin"/> : <Search size={14}/>} Search
                 </button>
               </form>
               {domError && <p className="text-[13px] text-red-500 mb-3 flex items-center gap-1.5"><AlertCircle size={13}/> {domError}</p>}
@@ -2714,7 +2714,7 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
                 const CANONICAL_FREE_TLDS = [".store", ".online", ".site", ".shop", ".fun", ".icu"];
                 const planFreeTlds = selectedPlan?.freeDomainTlds ?? [];
                 const allResults = [...domResults]
-                  .filter(r => r.registrationPrice > 0 && (r.showInSuggestions === true || r.tld === domTypedTld))
+                  .filter(r => r.registrationPrice >= 0 && (r.showInSuggestions === true || r.tld === domTypedTld))
                   .sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
                 const visibleResults = allResults.slice(0, 8);
                 const eligibleTldLabels = planFreeTlds.length > 0
@@ -2740,20 +2740,24 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
                       const isFreeByTld   = planFreeTlds.length === 0 && (CANONICAL_FREE_TLDS.includes(r.tld) || (r.isFreeWithHosting ?? false));
                       const isFreeExt     = freeDomainClaimed && freeDomainEligible && (isFreeByPlan || isFreeByTld);
                       const domainPrice   = isFreeExt ? 0 : r.registrationPrice;
+                      const fullName      = `${searched}${r.tld}`;
                       return (
                         <div key={r.tld}
                           className={`flex items-center gap-3 justify-between px-4 py-3 bg-white rounded-xl border transition-all ${
                             r.available
                               ? isFreeExt ? "border-green-200 hover:border-green-400" : "border-gray-200 hover:border-[#6B46C1]/30"
-                              : "opacity-45 border-gray-100"
+                              : "opacity-60 border-gray-100"
                           }`}>
                           <div className="flex items-center gap-0.5 flex-1 min-w-0">
                             <span className="text-[14px] font-bold text-gray-900">{searched}</span>
                             <span className="text-[14px] font-bold" style={{ color: isFreeExt ? "#16a34a" : P }}>{r.tld}</span>
                             {freeDomainClaimed && (
-                              <span className={`ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isFreeExt ? "bg-green-100 text-green-700" : "bg-orange-50 text-orange-500"}`}>
-                                {isFreeExt ? "✓ Free Eligible" : "Regular Price"}
+                              <span className={`ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isFreeExt ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`}>
+                                {isFreeExt ? "✓ Free" : "Regular Price"}
                               </span>
+                            )}
+                            {!freeDomainClaimed && isFreeExt && (
+                              <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">✓ Free</span>
                             )}
                           </div>
                           <div className="shrink-0">
@@ -2767,19 +2771,41 @@ export default function NewOrder({ initialGroupId, initialPackageId, initialVpsP
                                 ? <>
                                     <p className="text-[11px] text-gray-400 line-through">{formatPrice(r.registrationPrice)}</p>
                                     <p className="text-[13px] font-extrabold text-green-600">FREE</p>
+                                    <p className="text-[10px] text-gray-400">Renews {formatPrice(r.renewalPrice)}/yr</p>
                                   </>
-                                : <p className="text-[13px] font-extrabold">{formatPrice(r.registrationPrice)}/yr</p>}
-                              <p className="text-[10px] text-gray-400">Renews {formatPrice(r.renewalPrice)}/yr</p>
+                                : <>
+                                    <p className="text-[13px] font-extrabold">{formatPrice(r.registrationPrice)}/yr</p>
+                                    <p className="text-[10px] text-gray-400">{r.renewalPrice > 0
+                                      ? `Renews ${formatPrice(r.renewalPrice)}/yr`
+                                      : r.tld === ".pk" ? "2-year renewal"
+                                      : "Renews at regular price"}
+                                    </p>
+                                  </>}
                             </div>
-                            {r.available && (
-                              <button
-                                onClick={() => { selectDomain(`${searched}${r.tld}`, domainPrice, "register", r.registrationPrice); setStep(3); }}
-                                className="px-3.5 py-1.5 text-white text-[12px] font-bold rounded-xl flex items-center gap-1 hover:opacity-90"
-                                style={{ background: isFreeExt ? "#16a34a" : P }}>
-                                {isFreeExt ? <Gift size={11}/> : <ShoppingCart size={11}/>}
-                                {isFreeExt ? "Claim Free" : "Select"}
-                              </button>
-                            )}
+                            {r.available
+                              ? (
+                                <button
+                                  onClick={() => { selectDomain(fullName, domainPrice, "register", r.registrationPrice); setStep(3); }}
+                                  className="px-3.5 py-1.5 text-white text-[12px] font-bold rounded-xl flex items-center gap-1 hover:opacity-90"
+                                  style={{ background: isFreeExt ? "#16a34a" : P }}>
+                                  {isFreeExt ? <Gift size={11}/> : <ShoppingCart size={11}/>}
+                                  {isFreeExt ? "Claim Free" : "Select"}
+                                </button>
+                              )
+                              : (
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    onClick={() => window.open(`https://whois.domaintools.com/${fullName}`, "_blank", "noopener")}
+                                    className="px-3 py-1.5 text-[11px] font-bold rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 flex items-center gap-1">
+                                    <Info size={10}/> WHOIS
+                                  </button>
+                                  <button
+                                    onClick={() => { setDomainMode("transfer"); setTxDomain(fullName); }}
+                                    className="px-3 py-1.5 text-[11px] font-bold rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 flex items-center gap-1">
+                                    <ArrowRightLeft size={10}/> Transfer
+                                  </button>
+                                </div>
+                              )}
                           </div>
                         </div>
                       );

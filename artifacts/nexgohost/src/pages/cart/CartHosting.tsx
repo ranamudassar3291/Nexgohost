@@ -7,8 +7,8 @@ import { useLocation } from "wouter";
 import {
   Server, Check, ChevronDown, ChevronUp, Globe, Shield, Zap, HardDrive,
   Mail, Database, Tag, Gift, Loader2, AlertCircle, Lock, Search, X,
-  CreditCard, Landmark, Smartphone, Wallet, Bitcoin, ArrowRight,
-  Star, CheckCircle2, Eye, EyeOff, RefreshCw,
+  CreditCard, Landmark, Smartphone, Wallet, Bitcoin, ArrowRight, ArrowRightLeft,
+  Star, CheckCircle2, Eye, EyeOff, RefreshCw, Info,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/context/CurrencyProvider";
@@ -145,6 +145,8 @@ export default function CartHosting() {
   const [domainChecking, setDomainChecking] = useState(false);
   const [domainAvailable, setDomainAvailable] = useState<boolean | null>(null);
   const [domainPrice, setDomainPrice] = useState(0);
+  const [domainResults, setDomainResults] = useState<any[] | null>(null);
+  const [domainSelectedTld, setDomainSelectedTld] = useState<string | null>(null);
   const [freeTlds, setFreeTlds] = useState<TldRow[]>([]);
   const [freeDomainName, setFreeDomainName] = useState("");
   const [freeDomainTld, setFreeDomainTld] = useState("");
@@ -240,15 +242,28 @@ export default function CartHosting() {
     if (!domainInput.trim()) return;
     setDomainChecking(true);
     setDomainAvailable(null);
+    setDomainResults(null);
+    setDomainSelectedTld(null);
     try {
       const res = await fetch(`/api/domain/search?q=${encodeURIComponent(domainInput.trim())}`);
       const results: any[] = await res.json();
+      // Store all results for full display
+      setDomainResults(results);
+      // Find the one matching the user's typed domain
       const first = results.find(r => r.domain.toLowerCase() === domainInput.toLowerCase()) || results[0];
       if (first) {
         setDomainAvailable(first.available);
-        setDomainPrice(Number(first.price || first.registerPrice || 0));
+        const price = Number(first.price || first.registerPrice || 0);
+        setDomainPrice(price);
+        // If typed with TLD, select it immediately
+        if (domainInput.includes(".")) {
+          const tld = `.${domainInput.split(".").slice(1).join(".")}`;
+          setDomainSelectedTld(tld.toLowerCase());
+        } else {
+          setDomainSelectedTld(first.tld?.toLowerCase());
+        }
       }
-    } catch { toast({ title: "Check failed", variant: "destructive" }); }
+    } catch { toast({ title: "Search failed", variant: "destructive" }); }
     finally { setDomainChecking(false); }
   }, [domainInput, toast]);
 
@@ -447,25 +462,99 @@ export default function CartHosting() {
                   <div className="bg-white rounded-2xl border border-gray-200 p-6">
                     <label className="block text-[13px] font-semibold text-gray-700 mb-2">Search for a domain</label>
                     <div className="flex gap-2">
-                      <input value={domainInput} onChange={e => { setDomainInput(e.target.value); setDomainAvailable(null); }}
+                      <input value={domainInput} onChange={e => { setDomainInput(e.target.value); setDomainAvailable(null); setDomainResults(null); }}
                         onKeyDown={e => e.key === "Enter" && checkDomain()}
-                        placeholder="example.com" className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-[14px] outline-none focus:border-purple-400"/>
+                        placeholder="e.g. mybusiness, mystore.com" className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-[14px] outline-none focus:border-purple-400"/>
                       <button onClick={checkDomain} disabled={domainChecking || !domainInput.trim()}
                         className="px-5 py-2.5 rounded-xl text-white font-semibold text-[13px] flex items-center gap-2 disabled:opacity-50"
                         style={{ background: G }}>
-                        {domainChecking ? <Loader2 size={15} className="animate-spin"/> : <Search size={15}/>} Check
+                        {domainChecking ? <Loader2 size={15} className="animate-spin"/> : <Search size={15}/>} Search
                       </button>
                     </div>
-                    {domainAvailable === true && (
-                      <div className="mt-3 flex items-center gap-2 text-emerald-600 font-semibold text-[13px]">
-                        <CheckCircle2 size={16}/> Available! {domainPrice > 0 ? `+${formatPrice(domainPrice)}` : "Free with plan"}
-                      </div>
-                    )}
-                    {domainAvailable === false && (
-                      <div className="mt-3 flex items-center gap-2 text-red-500 text-[13px]">
-                        <AlertCircle size={16}/> Domain not available. Try another.
-                      </div>
-                    )}
+                    {domainChecking && <div className="text-center py-6"><Loader2 size={20} className="animate-spin text-purple-400 mx-auto"/></div>}
+                    {domainResults && !domainChecking && (() => {
+                      const baseName = domainInput.split(".")[0].replace(/[^a-z0-9-]/gi, "").toLowerCase();
+                      const planFreeTlds = selectedPlan?.freeDomainTlds ?? [];
+                      const cycleFree = selectedPlan?.freeDomainEnabled && cycle === "yearly";
+                      return (
+                        <div className="mt-3 space-y-2">
+                          {domainResults.length === 0 && (
+                            <p className="text-[13px] text-gray-400 text-center py-4">No results found. Try a different name.</p>
+                          )}
+                          {domainResults.map(r => {
+                            const isFree = cycleFree && (planFreeTlds.includes(r.tld) || r.isFreeWithHosting);
+                            const isSelected = domainSelectedTld === r.tld?.toLowerCase();
+                            return (
+                              <div key={r.tld}
+                                className={`flex items-center gap-3 justify-between px-4 py-3 bg-white rounded-xl border transition-all ${
+                                  r.available ? "border-gray-200 hover:border-[#6B46C1]/30" : "opacity-60 border-gray-100"
+                                }`}>
+                                <div className="flex items-center gap-0.5 flex-1 min-w-0">
+                                  <span className="text-[14px] font-bold text-gray-900">{baseName}</span>
+                                  <span className="text-[14px] font-bold" style={{ color: isFree ? "#16a34a" : BRAND }}>{r.tld}</span>
+                                  {isFree && (
+                                    <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">✓ Free</span>
+                                  )}
+                                  {!isFree && cycleFree && (
+                                    <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">Regular Price</span>
+                                  )}
+                                </div>
+                                <div className="shrink-0">
+                                  {r.available
+                                    ? <span className="flex items-center gap-1 text-[11px] font-bold text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full"><Check size={10} strokeWidth={2.5}/> Available</span>
+                                    : <span className="text-[11px] font-bold text-red-400 bg-red-50 border border-red-100 px-2 py-0.5 rounded-full">Taken</span>}
+                                </div>
+                                <div className="flex items-center gap-2.5 shrink-0">
+                                  <div className="text-right">
+                                    {isFree
+                                      ? <>
+                                          <p className="text-[11px] text-gray-400 line-through">{formatPrice(Number(r.registerPrice))}</p>
+                                          <p className="text-[13px] font-extrabold text-green-600">FREE</p>
+                                          <p className="text-[10px] text-gray-400">Renews {formatPrice(Number(r.renewalPrice || 0))}/yr</p>
+                                        </>
+                                      : <>
+                                          <p className="text-[13px] font-extrabold">{formatPrice(Number(r.registerPrice || r.price || 0))}/yr</p>
+                                          <p className="text-[10px] text-gray-400">{Number(r.renewalPrice) > 0
+                                            ? `Renews ${formatPrice(Number(r.renewalPrice))}/yr`
+                                            : r.tld === ".pk" ? "2-year renewal"
+                                            : "Renews at regular price"}
+                                          </p>
+                                        </>}
+                                  </div>
+                                  {r.available
+                                    ? (
+                                      <button
+                                        onClick={() => {
+                                          setDomainSelectedTld(r.tld.toLowerCase());
+                                          setDomainPrice(isFree ? 0 : Number(r.registerPrice || r.price || 0));
+                                        }}
+                                        className={`px-3.5 py-1.5 text-[12px] font-bold rounded-xl flex items-center gap-1 hover:opacity-90 ${isSelected ? "text-white" : "text-white"}`}
+                                        style={{ background: isFree ? "#16a34a" : isSelected ? BRAND : "#f3f4f6", color: isSelected ? "#fff" : isFree ? "#fff" : "#6b7280" }}>
+                                        {isFree ? <Gift size={11}/> : <Check size={11}/>}
+                                        {isFree ? "Claim Free" : isSelected ? "Selected" : "Select"}
+                                      </button>
+                                    )
+                                    : (
+                                      <div className="flex items-center gap-1.5">
+                                        <button
+                                          onClick={() => window.open(`https://whois.domaintools.com/${r.domain}`, "_blank", "noopener")}
+                                          className="px-3 py-1.5 text-[11px] font-bold rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 flex items-center gap-1">
+                                          <Info size={10}/> WHOIS
+                                        </button>
+                                        <button
+                                          onClick={() => { setDomainMode("existing"); setDomainInput(r.domain); }}
+                                          className="px-3 py-1.5 text-[11px] font-bold rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 flex items-center gap-1">
+                                          <ArrowRightLeft size={10}/> Transfer
+                                        </button>
+                                      </div>
+                                    )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
 
@@ -640,7 +729,9 @@ export default function CartHosting() {
                   {(domainMode === "register" && domainAvailable && domainInput) && (
                     <div className="rounded-xl bg-gray-50 border border-gray-100 p-3 mb-4">
                       <div className="text-[12px] font-semibold text-gray-700 flex items-center gap-1.5"><Globe size={12}/> Domain</div>
-                      <div className="text-[13px] text-gray-800 mt-0.5">{domainInput}</div>
+                      <div className="text-[13px] text-gray-800 mt-0.5">
+                        {domainSelectedTld ? domainInput.split(".")[0] + domainSelectedTld : domainInput}
+                      </div>
                       <div className="text-[12px] font-bold text-gray-700 mt-1">{domainPrice > 0 ? formatPrice(domainPrice) : "FREE"}</div>
                     </div>
                   )}

@@ -323,6 +323,7 @@ router.get("/domain/search", async (req, res) => {
         const available = check?.available ?? null;
         const regPrice = priceRow ? parseFloat(priceRow.registerPrice as string) : null;
         const xfrPrice = priceRow ? parseFloat((priceRow as any).transferPrice ?? priceRow.registerPrice as string) : null;
+        const renPrice = priceRow ? parseFloat(priceRow.renewalPrice as string) : null;
 
         return {
           domain: fullDomain,
@@ -332,6 +333,8 @@ router.get("/domain/search", async (req, res) => {
           price: regPrice !== null ? String(regPrice) : "0",
           registerPrice: regPrice !== null ? String(regPrice) : "0",
           transferPrice: xfrPrice !== null ? String(xfrPrice) : "0",
+          renewalPrice: renPrice !== null ? String(renPrice) : "0",
+          isFreeWithHosting: priceRow?.isFreeWithHosting ?? false,
         };
       })
     );
