@@ -133,8 +133,6 @@ import NoeKbCategory from "@/noehost/components/pages/KbCategory";
 import NoeKbArticle from "@/noehost/components/pages/KbArticle";
 
 import { queryClient } from "@/lib/query-client";
-import { useApiHealth } from "@/hooks/use-api-health";
-import MaintenancePage from "@/pages/errors/MaintenancePage";
 
 // ─── Auth Guard Helpers ───────────────────────────────────────────────────────
 // Used inline per-route to avoid nested Switch context issues in Wouter v3.
@@ -239,8 +237,9 @@ function CartRedirect() {
 // Monitors backend availability and shows a maintenance page if the API
 // fails to respond after 2 consecutive checks (every 20 seconds).
 function ApiHealthWrapper({ children }: { children: React.ReactNode }) {
-  const { isDown, retry } = useApiHealth();
-  if (isDown) return <MaintenancePage onRetry={retry} />;
+  // API health monitoring is disabled — maintenance page was showing up
+  // incorrectly due to Cloudflare proxy blocking /api/config on custom domains.
+  // Admin panel changes and website content are not affected by API status.
   return <>{children}</>;
 }
 
