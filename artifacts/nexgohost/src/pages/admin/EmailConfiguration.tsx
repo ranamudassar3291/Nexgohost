@@ -227,6 +227,7 @@ export default function EmailConfiguration() {
                     { name: "Brevo", host: "smtp-relay.brevo.com", port: "587", enc: "tls", hint: "brevo.com → Free 300 emails/day" },
                     { name: "Gmail", host: "smtp.gmail.com", port: "587", enc: "tls", hint: "Use Gmail App Password" },
                     { name: "Mailgun", host: "smtp.mailgun.org", port: "587", enc: "tls", hint: "mailgun.com free tier" },
+                    { name: "Stackmail", host: "smtp.stackmail.com", port: "465", enc: "ssl", hint: "20i/StackCP email hosting" },
                   ].map(p => (
                     <button key={p.name} type="button"
                       onClick={() => setForm(prev => ({ ...(prev ?? cfg), smtp_host: p.host, smtp_port: p.port, smtp_encryption: p.enc }))}
@@ -237,8 +238,8 @@ export default function EmailConfiguration() {
                   ))}
                 </div>
                 {/stackcp|stackmail|20i/i.test(cfg.smtp_host) && (
-                  <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-400">
-                    ⚠️ StackCP/20i SMTP is blocked from this hosting server's IP. Please use Brevo, Gmail, or Mailgun instead.
+                  <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 px-3 py-2 text-xs text-blue-400">
+                    StackCP/20i email hosting detected. Use <strong>smtp.stackmail.com</strong> with SSL (port 465) and your StackCP email address as the username.
                   </div>
                 )}
               </div>

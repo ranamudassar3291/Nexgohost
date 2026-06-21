@@ -250,9 +250,9 @@ router.post("/admin/settings/smtp/verify", authenticate, requireAdmin, async (re
     if (/ECONNREFUSED|ENOTFOUND|EHOSTUNREACH/.test(raw)) {
       const is20i = /stackcp|stackmail|20i/i.test(host);
       if (is20i) {
-        hint = ` — StackCP/20i SMTP is blocked from this server's IP. Use a relay instead: Brevo (smtp-relay.brevo.com:587), Gmail (smtp.gmail.com:587), or Mailgun.`;
+        hint = ` — StackCP/20i SMTP unreachable. Check: 1) Username is your full StackCP email address (e.g. info@noehost.com). 2) Password is your StackCP email password. 3) Use SSL (port 465). 4) Ensure your DNS MX records point to mx.stackmail.com.`;
       } else {
-        hint = ` — Cannot reach ${host}:${port}. Verify the SMTP host/port or use Brevo/Gmail SMTP.`;
+        hint = ` — Cannot reach ${host}:${port}. Verify the SMTP host/port.`;
       }
     } else if (/535|Authentication|Invalid login|auth/i.test(raw)) {
       hint = " — Login failed. Double-check your SMTP username and password.";
