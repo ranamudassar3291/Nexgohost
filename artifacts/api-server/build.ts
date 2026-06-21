@@ -53,6 +53,8 @@ async function buildAll() {
       !allowlist.includes(dep) &&
       !(pkg.dependencies?.[dep]?.startsWith("workspace:")),
   );
+  // Always external packages that are optional runtime deps
+  externals.push("@whiskeysockets/baileys");
 
   await esbuild({
     entryPoints: [path.resolve(__dirname, "src/index.ts")],
