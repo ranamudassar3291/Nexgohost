@@ -20,6 +20,17 @@ interface PlatformSettings {
   email_verification_enabled: boolean;
   wallet_min_deposit: number;
   wallet_max_deposit: number;
+  site_name: string;
+  brand_support_email: string;
+  brand_website: string;
+  brand_whatsapp: string;
+}
+
+interface BrandingSettings {
+  site_name: string;
+  brand_support_email: string;
+  brand_website: string;
+  brand_whatsapp: string;
 }
 
 export default function AdminSettings() {
@@ -57,12 +68,51 @@ export default function AdminSettings() {
     } finally { setSavingVerification(false); }
   };
 
+  // ── Company Settings (from branding API) ────────────────────────────────────
+  const [companySaving, setCompanySaving] = useState(false);
+  const [companyForm, setCompanyForm] = useState<BrandingSettings>({
+    site_name: "",
+    brand_support_email: "",
+    brand_website: "",
+    brand_whatsapp: "",
+  });
+  const [companyLoaded, setCompanyLoaded] = useState(false);
+
+  const { data: brandingSettings } = useQuery<BrandingSettings>({
+    queryKey: ["admin-branding-settings"],
+    queryFn: () => apiFetch("/api/admin/branding/settings"),
+  });
+
+  // Populate form once on load
+  if (brandingSettings && !companyLoaded) {
+    setCompanyForm({
+      site_name: brandingSettings.site_name ?? "",
+      brand_support_email: brandingSettings.brand_support_email ?? "",
+      brand_website: brandingSettings.brand_website ?? "",
+      brand_whatsapp: brandingSettings.brand_whatsapp ?? "",
+    });
+    setCompanyLoaded(true);
+  }
+
+  const handleSaveCompany = async () => {
+    setCompanySaving(true);
+    try {
+      await apiFetch("/api/admin/branding/settings", {
+        method: "PUT",
+        body: JSON.stringify(companyForm),
+      });
+      qc.invalidateQueries({ queryKey: ["admin-branding-settings"] });
+      toast({ title: "Company settings saved", description: "Your company details have been updated in the database." });
+    } catch (err: any) {
+      toast({ title: "Failed to save", description: err.message, variant: "destructive" });
+    } finally { setCompanySaving(false); }
+  };
+
   // ── Wallet Settings ───────────────────────────────────────────────────────
   const [walletMin, setWalletMin] = useState<string>("");
   const [walletMax, setWalletMax] = useState<string>("");
   const [savingWallet, setSavingWallet] = useState(false);
 
-  // Populate wallet fields from platform settings
   const walletMinValue = walletMin !== "" ? walletMin : String(platformSettings?.wallet_min_deposit ?? 270);
   const walletMaxValue = walletMax !== "" ? walletMax : String(platformSettings?.wallet_max_deposit ?? 100000);
 
@@ -129,12 +179,49 @@ export default function AdminSettings() {
             <h3 className="font-semibold text-foreground">Company Settings</h3>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1"><label className="text-sm text-muted-foreground">Company Name</label><Input defaultValue="Noehost" className="bg-background border-border" /></div>
-            <div className="space-y-1"><label className="text-sm text-muted-foreground">Support Email</label><Input defaultValue="support@noehost.com" className="bg-background border-border" /></div>
-            <div className="space-y-1"><label className="text-sm text-muted-foreground">Company URL</label><Input defaultValue="https://noehost.com" className="bg-background border-border" /></div>
-            <div className="space-y-1"><label className="text-sm text-muted-foreground">Phone Number</label><Input defaultValue="+1-555-0100" className="bg-background border-border" /></div>
+            <div className="space-y-1">
+              <label className="text-sm text-muted-foreground">Company Name</label>
+              <Input
+                value={companyForm.site_name}
+                onChange={e => setCompanyForm(f => ({ ...f, site_name: e.target.value }))}
+                placeholder="e.g. Noehost"
+                className="bg-background border-border"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm text-muted-foreground">Support Email</label>
+              <Input
+                value={companyForm.brand_support_email}
+                onChange={e => setCompanyForm(f => ({ ...f, brand_support_email: e.target.value }))}
+                placeholder="e.g. support@noehost.com"
+                className="bg-background border-border"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm text-muted-foreground">Company URL</label>
+              <Input
+                value={companyForm.brand_website}
+                onChange={e => setCompanyForm(f => ({ ...f, brand_website: e.target.value }))}
+                placeholder="e.g. https://noehost.com"
+                className="bg-background border-border"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm text-muted-foreground">Phone / WhatsApp</label>
+              <Input
+                value={companyForm.brand_whatsapp}
+                onChange={e => setCompanyForm(f => ({ ...f, brand_whatsapp: e.target.value }))}
+                placeholder="e.g. +92-300-1234567"
+                className="bg-background border-border"
+              />
+            </div>
           </div>
-          <Button className="mt-4">Save Changes</Button>
+          <div className="mt-4 flex items-center gap-3">
+            <Button onClick={handleSaveCompany} disabled={companySaving} className="bg-primary hover:bg-primary/90">
+              {companySaving ? <><Loader2 size={15} className="animate-spin mr-2"/>Saving…</> : "Save Changes"}
+            </Button>
+            <p className="text-[11px] text-muted-foreground">Saved to database — persists across server restarts</p>
+          </div>
         </div>
 
         {/* Email Configuration — link to dedicated page */}
