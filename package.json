@@ -9,11 +9,6 @@
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
   },
   "private": true,
-  "pnpm": {
-    "overrides": {
-      "websocket-driver": "0.7.5"
-    }
-  },
   "devDependencies": {
     "typescript": "~5.9.2",
     "prettier": "^3.8.1"

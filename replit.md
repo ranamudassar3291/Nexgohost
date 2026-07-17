@@ -1,5 +1,32 @@
 # Nexgohost (Noehost) — Hosting Management Platform
 
+## Replit Setup (completed 2026-07-17)
+
+### How to run
+- **Workflow**: `Start application` — starts API server (port 8080) + Vite frontend (port 5000) in parallel
+- **Command**: `pnpm --filter @workspace/api-server run dev & PORT=5000 pnpm --filter @workspace/nexgohost run dev`
+- **Install deps**: `pnpm install` (uses pnpm workspaces; `websocket-driver` pinned to 0.7.5 in `pnpm-workspace.yaml` overrides to pass package firewall)
+
+### Database
+- Uses Replit's built-in PostgreSQL (`DATABASE_URL` auto-injected)
+- **Restore from backup**: `grep -v "^\\\\restrict\|^\\\\unrestrict" <backup.sql> > /tmp/clean.sql && psql "$DATABASE_URL" -f /tmp/clean.sql`
+  - Backup files include `\restrict`/`\unrestrict` lines that must be stripped before import
+- Schema is also auto-migrated on API server startup (new tables added automatically)
+
+### Environment variables already set (in .replit `[userenv.shared]`)
+- `JWT_SECRET`, `ENCRYPTION_KEY`, `SESSION_SECRET` — auth/crypto
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM_NAME`, `SMTP_ENCRYPTION` — email transport (credentials needed separately)
+- `SERVER_HOSTNAME`, `APP_URL`, `ADMIN_LOGIN_SLUG`
+- `AI_INTEGRATIONS_OPENAI_BASE_URL` — points to Gemini OpenAI-compat endpoint (API key needed separately)
+
+### Still needed to fully activate
+- **SMTP_USER / SMTP_PASS** — email delivery
+- **20i API key** — hosting panel server management (set in Admin → Settings)
+- **Google AI API key** — AI support chat
+- **Safepay keys** — payment gateway
+
+
+
 ## CMS Architecture
 
 - **Firebase REMOVED** — all website content stored in PostgreSQL `settings` table (key: `site_content_v1`)
