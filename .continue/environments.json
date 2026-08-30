@@ -1,0 +1,7 @@
+[
+  {
+    "install": "pnpm install",
+    "start": "pnpm run dev",
+    "resourceSize": "medium"
+  }
+]
